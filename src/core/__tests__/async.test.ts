@@ -126,9 +126,9 @@ describe('withDeadline', () => {
         'op',
       );
 
+      // Abort fires long before the 1000 ms timer, so aborted is what surfaces.
       controller.abort();
-      const error = await pending.catch((e: unknown) => e as NfcError);
-      expect(error.code).toBe('aborted');
+      await expect(pending).rejects.toMatchObject({ code: 'aborted' });
     } finally {
       jest.useRealTimers();
     }
