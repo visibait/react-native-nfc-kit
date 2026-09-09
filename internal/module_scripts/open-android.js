@@ -7,8 +7,11 @@ const { spawnSync } = require('node:child_process');
 
 const androidDir = path.join(process.cwd(), 'example', 'android');
 if (!fs.existsSync(androidDir)) {
-  console.error('example/android does not exist. Run `cd example && npx expo prebuild -p android` first.');
+  console.error(
+    'example/android does not exist. Run `cd example && npx expo prebuild -p android` first.',
+  );
   process.exit(1);
 }
-const command = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+const command =
+  process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
 spawnSync(command, [androidDir], { stdio: 'inherit', shell: process.platform === 'win32' });

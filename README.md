@@ -24,13 +24,13 @@ Swift and Kotlin, New Architecture native, and typed end to end.
 
 ## Requirements
 
-| | Minimum |
-|---|---|
-| Expo SDK | 57 (React Native 0.86) |
-| React Native (bare) | 0.86 |
-| iOS | 16.4, physical device |
-| Android | API 24 |
-| Node | 20.19.4 / 22.13 / 24.3+ |
+|                     | Minimum                 |
+| ------------------- | ----------------------- |
+| Expo SDK            | 57 (React Native 0.86)  |
+| React Native (bare) | 0.86                    |
+| iOS                 | 16.4, physical device   |
+| Android             | API 24                  |
+| Node                | 20.19.4 / 22.13 / 24.3+ |
 
 ## NFC requires a development build
 
@@ -87,19 +87,19 @@ for Expo, and the exact plist/XML for bare.
 
 ## Roadmap
 
-| Phase | Contents | Status |
-|---|---|---|
-| M0 | Repository scaffold, tooling, CI | in progress |
-| M1 | NDEF codec (pure TypeScript, no native) | |
-| M2 | Native skeleton, errors, sessions, NDEF read/write | |
-| M3 | ISO-DEP/ISO7816, ISO15693, FeliCa, MIFARE Ultralight/Classic, raw transceive | |
-| M4 | Config plugin, setup docs | |
-| M5 | Continuous reading, `onTagLost`, observe mode | |
-| M6 | Background tag reading | |
-| M7 | Host card emulation (Android `HostApduService`, iOS `CardSession`) | |
-| M8 | Apple VAS, presentment intent assertion | |
-| M9 | React hooks, Web NFC shim, docs site | |
-| M10 | Device matrix pass, migration guide, `1.0.0` | |
+| Phase | Contents                                                                     | Status      |
+| ----- | ---------------------------------------------------------------------------- | ----------- |
+| M0    | Repository scaffold, tooling, CI                                             | in progress |
+| M1    | NDEF codec (pure TypeScript, no native)                                      |             |
+| M2    | Native skeleton, errors, sessions, NDEF read/write                           |             |
+| M3    | ISO-DEP/ISO7816, ISO15693, FeliCa, MIFARE Ultralight/Classic, raw transceive |             |
+| M4    | Config plugin, setup docs                                                    |             |
+| M5    | Continuous reading, `onTagLost`, observe mode                                |             |
+| M6    | Background tag reading                                                       |             |
+| M7    | Host card emulation (Android `HostApduService`, iOS `CardSession`)           |             |
+| M8    | Apple VAS, presentment intent assertion                                      |             |
+| M9    | React hooks, Web NFC shim, docs site                                         |             |
+| M10   | Device matrix pass, migration guide, `1.0.0`                                 |             |
 
 Out of scope, deliberately: Apple's NFC & SE Platform (`CredentialSession`). It requires
 an agreement with Apple, ABR onboarding, and an accredited-lab applet security review —

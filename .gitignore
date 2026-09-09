@@ -45,3 +45,6 @@ yarn-error.log
 # Env
 .env
 .env.local
+
+# Package verification output
+.tmp/

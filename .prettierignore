@@ -1,0 +1,11 @@
+build/
+plugin/build/
+coverage/
+node_modules/
+.tmp/
+example/ios/
+example/android/
+example/.expo/
+docs/.docusaurus/
+docs/build/
+*.tgz

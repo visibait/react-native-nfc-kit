@@ -2,24 +2,18 @@
   "name": "react-native-nfc-kit",
   "version": "0.0.0",
   "description": "Modern, typed NFC for React Native and Expo. New Architecture native, Swift + Kotlin, sessions that cannot leak.",
-  "main": "build/index.js",
-  "types": "build/index.d.ts",
+  "main": "./build/cjs/index.js",
+  "types": "./build/cjs/index.d.ts",
   "exports": {
     ".": {
-      "types": "./build/index.d.ts",
-      "default": "./build/index.js"
-    },
-    "./ndef": {
-      "types": "./build/ndef/index.d.ts",
-      "default": "./build/ndef/index.js"
-    },
-    "./react": {
-      "types": "./build/react/index.d.ts",
-      "default": "./build/react/index.js"
-    },
-    "./hce": {
-      "types": "./build/hce/index.d.ts",
-      "default": "./build/hce/index.js"
+      "import": {
+        "types": "./build/esm/index.d.ts",
+        "default": "./build/esm/index.js"
+      },
+      "require": {
+        "types": "./build/cjs/index.d.ts",
+        "default": "./build/cjs/index.js"
+      }
     },
     "./package.json": "./package.json"
   },
@@ -42,7 +36,7 @@
     "!**/*.tsbuildinfo"
   ],
   "scripts": {
-    "build": "tsc && npm run build:plugin",
+    "build": "tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node internal/module_scripts/finalize-build.js && npm run build:plugin",
     "build:plugin": "tsc --build plugin",
     "clean": "node internal/module_scripts/clean.js",
     "typecheck": "tsc --noEmit && tsc --noEmit -p plugin",
@@ -98,6 +92,7 @@
     }
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.1.1",
     "babel-preset-expo": "~57.0.0",
@@ -108,9 +103,11 @@
     "jest-expo": "~57.0.5",
     "jiti": "^2.7.0",
     "prettier": "^3.9.6",
-    "react": "19.2.0",
+    "publint": "^0.3.24",
+    "react": "19.2.8",
     "react-native": "0.86.3",
     "ts-node": "^10.9.2",
     "typescript": "~5.9.2"
-  }
+  },
+  "module": "./build/esm/index.js"
 }

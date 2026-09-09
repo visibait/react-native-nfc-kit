@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    // CommonJS output cannot preserve ESM import/export syntax verbatim.
+    "verbatimModuleSyntax": false,
+    "outDir": "./build/cjs"
+  },
+  "include": ["./src"],
+  "exclude": ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"]
+}
