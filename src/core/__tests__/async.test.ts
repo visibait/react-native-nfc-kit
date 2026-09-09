@@ -120,10 +120,14 @@ describe('withDeadline', () => {
     jest.useFakeTimers();
     try {
       const controller = new AbortController();
-      const pending = withDeadline(never(), { signal: controller.signal, timeoutMs: 1000 }, 'op');
+      const pending = withDeadline(
+        never<void>(),
+        { signal: controller.signal, timeoutMs: 1000 },
+        'op',
+      );
 
       controller.abort();
-      const error = await pending.catch((e: NfcError) => e);
+      const error = await pending.catch((e: unknown) => e as NfcError);
       expect(error.code).toBe('aborted');
     } finally {
       jest.useRealTimers();
