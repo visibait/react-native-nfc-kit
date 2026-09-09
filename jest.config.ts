@@ -22,6 +22,13 @@ const RESOLVE_TS_FROM_JS_SPECIFIER: Record<string, string> = {
  *   `requireNativeModule()` and serves the mocks from `mocks/`. Session
  *   lifecycle, cancellation and error mapping are tested there.
  */
+/**
+ * Only `*.test.ts` files are suites. Shared helpers live alongside them inside
+ * `__tests__`, and Jest's default pattern would otherwise try to run those as
+ * empty test files.
+ */
+const TEST_MATCH = ['**/*.test.ts', '**/*.test.tsx'];
+
 const config: Config = {
   projects: [
     {
@@ -34,12 +41,19 @@ const config: Config = {
         '^.+\\.[jt]sx?$': ['babel-jest', { configFile: path.join(__dirname, 'babel.config.js') }],
       },
       moduleNameMapper: RESOLVE_TS_FROM_JS_SPECIFIER,
+      testMatch: TEST_MATCH,
     },
     {
       displayName: 'core',
       preset: 'jest-expo',
-      roots: ['<rootDir>/src/core', '<rootDir>/src/react', '<rootDir>/src/hce'],
+      roots: [
+        '<rootDir>/src/core',
+        '<rootDir>/src/native',
+        '<rootDir>/src/react',
+        '<rootDir>/src/hce',
+      ],
       moduleNameMapper: RESOLVE_TS_FROM_JS_SPECIFIER,
+      testMatch: TEST_MATCH,
     },
   ],
 

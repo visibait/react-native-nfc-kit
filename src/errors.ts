@@ -93,6 +93,62 @@ export type NfcErrorCode =
   /** A failure with no better classification. Always worth a bug report. */
   | 'internalError';
 
+/**
+ * Every {@link NfcErrorCode} as a runtime value.
+ *
+ * Needed because a code arriving from native is just a string and has to be
+ * validated before it is trusted. The union above carries the documentation; this
+ * array carries the values, and the two are kept in agreement by the compiler:
+ * `satisfies` rejects an entry that is not a real code, and the assertion below
+ * rejects a code that was added to the union but not listed here.
+ */
+export const NFC_ERROR_CODES = [
+  'userCancelled',
+  'sessionTimeout',
+  'sessionClosed',
+  'systemBusy',
+  'aborted',
+  'timeout',
+  'nfcUnsupported',
+  'nfcDisabled',
+  'noActivity',
+  'entitlementMissing',
+  'notAuthorized',
+  'contractMismatch',
+  'tagLost',
+  'tagConnectionFailed',
+  'techUnavailable',
+  'tagNotSupported',
+  'ioError',
+  'transceiveFailed',
+  'transceiveTooLong',
+  'authenticationFailed',
+  'ndefNotSupported',
+  'ndefReadOnly',
+  'ndefCapacityExceeded',
+  'ndefMalformed',
+  'hceUnsupported',
+  'hceNotEligible',
+  'hceMaxDurationReached',
+  'invalidArgument',
+  'unsupportedPlatform',
+  'internalError',
+] as const satisfies readonly NfcErrorCode[];
+
+// Fails to compile if a code exists in the union but is missing from the array
+// above. The error message names the missing members.
+type MissingErrorCodes = Exclude<NfcErrorCode, (typeof NFC_ERROR_CODES)[number]>;
+const _everyErrorCodeIsListed: [MissingErrorCodes] extends [never] ? true : MissingErrorCodes =
+  true;
+void _everyErrorCodeIsListed;
+
+const NFC_ERROR_CODE_SET: ReadonlySet<string> = new Set(NFC_ERROR_CODES);
+
+/** Whether an arbitrary string is a known error code. */
+export function isNfcErrorCode(value: string): value is NfcErrorCode {
+  return NFC_ERROR_CODE_SET.has(value);
+}
+
 /** Where an error originated. */
 export type NfcPlatform = 'ios' | 'android' | 'web' | 'js';
 
