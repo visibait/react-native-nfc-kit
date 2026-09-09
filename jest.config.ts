@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import type { Config } from 'jest';
 
 /**
@@ -15,9 +17,11 @@ const config: Config = {
     {
       displayName: 'pure',
       testEnvironment: 'node',
-      roots: ['<rootDir>/src/ndef', '<rootDir>/src/protocols'],
+      roots: ['<rootDir>/src/__tests__', '<rootDir>/src/ndef', '<rootDir>/src/protocols'],
       transform: {
-        '^.+\.[jt]sx?$': ['babel-jest', { configFile: '<rootDir>/babel.config.js' }],
+        // Jest does not substitute <rootDir> inside transform options, so the
+        // path is resolved here. Being a TypeScript config, it can just do that.
+        '^.+\.[jt]sx?$': ['babel-jest', { configFile: path.join(__dirname, 'babel.config.js') }],
       },
     },
     {
@@ -44,15 +48,11 @@ const config: Config = {
       lines: 85,
       statements: 85,
     },
+    // src/protocols gets the same 100% threshold in M4, once it has files:
+    // Jest fails on a threshold path with no coverage data.
     // The pure layers have no excuse. Every branch of a byte codec is reachable
     // from a test, so any uncovered branch is an untested branch.
     './src/ndef/': {
-      branches: 100,
-      functions: 100,
-      lines: 100,
-      statements: 100,
-    },
-    './src/protocols/': {
       branches: 100,
       functions: 100,
       lines: 100,

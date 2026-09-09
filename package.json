@@ -39,7 +39,7 @@
     "build": "tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node internal/module_scripts/finalize-build.js && npm run build:plugin",
     "build:plugin": "tsc --build plugin",
     "clean": "node internal/module_scripts/clean.js",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p plugin",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json && tsc -p plugin --noEmit --composite false",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // This project emits nothing, so rootDir only needs to be wide enough to
+    // cover the root-level config files it type-checks.
+    "rootDir": "."
+  },
+  "include": [
+    "./internal/types",
+    "./src",
+    "./jest.config.ts",
+    "./eslint.config.ts",
+    "./prettier.config.mts"
+  ],
+  "exclude": []
+}

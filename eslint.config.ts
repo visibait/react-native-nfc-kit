@@ -1,3 +1,4 @@
+import type { Linter } from 'eslint';
 import expoConfig from 'eslint-config-expo/flat.js';
 import { defineConfig, globalIgnores } from 'eslint/config';
 
@@ -8,7 +9,7 @@ import { defineConfig, globalIgnores } from 'eslint/config';
  * native module and no simulator. An accidental `react-native` import there
  * would silently take that away.
  */
-const PURE_LAYER_RESTRICTIONS = {
+const PURE_LAYER_RESTRICTIONS: Linter.RulesRecord = {
   'no-restricted-imports': [
     'error',
     {
@@ -37,7 +38,7 @@ const PURE_LAYER_RESTRICTIONS = {
       ],
     },
   ],
-} as const;
+};
 
 export default defineConfig([
   globalIgnores([
