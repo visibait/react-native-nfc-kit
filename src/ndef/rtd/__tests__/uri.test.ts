@@ -1,10 +1,10 @@
-import { NfcError } from '../../../errors';
-import { utf8Encode } from '../../bytes';
-import { decodeMessage, encodeMessage } from '../../message';
-import { Tnf, createRecord } from '../../record';
-import { URI_PREFIXES } from '../../uriPrefixes';
-import { createUriRecord, decodeUriRecord, isUriRecord } from '../uri';
-import { WellKnownType, isWellKnownRecord, wellKnownTypeBytes } from '../wellKnown';
+import { NfcError } from '../../../errors.js';
+import { utf8Encode } from '../../bytes.js';
+import { decodeMessage, encodeMessage } from '../../message.js';
+import { Tnf, createRecord } from '../../record.js';
+import { URI_PREFIXES } from '../../uriPrefixes.js';
+import { createUriRecord, decodeUriRecord, isUriRecord } from '../uri.js';
+import { WellKnownType, isWellKnownRecord, wellKnownTypeBytes } from '../wellKnown.js';
 
 function expectNfcError(run: () => unknown, code: string, messagePart?: string): void {
   try {

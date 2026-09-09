@@ -3,8 +3,8 @@
 A modern NFC library for React Native and Expo. Built on the Expo Modules API with
 Swift and Kotlin, New Architecture native, and typed end to end.
 
-> **Status: pre-release (`0.0.0`).** The public API is being built out phase by phase.
-> See [the roadmap](#roadmap) for what exists today.
+> **Status: pre-release (`0.0.0`).** The NDEF codec is complete and usable today.
+> The reader and session API lands next. See [the roadmap](#roadmap).
 
 ## Why another NFC library
 
@@ -45,6 +45,39 @@ eas build --profile development
 
 Also note that iOS has no NFC support in the Simulator at all — you need a physical
 device (iPhone 7 or later for NDEF, iPhone XS or later for background tag reading).
+
+## What works today
+
+The NDEF codec is done: `react-native-nfc-kit/ndef` is pure TypeScript over
+`Uint8Array` with no native dependency, so it works in a bundler, in Node and on
+the web. See [docs/ndef.md](docs/ndef.md).
+
+```ts
+import {
+  createUriRecord,
+  createTextRecord,
+  encodeMessage,
+  decodeMessage,
+  isUriRecord,
+  decodeUriRecord,
+} from 'react-native-nfc-kit/ndef';
+
+const bytes = encodeMessage([
+  createUriRecord('https://www.ventry.es/entrada'),
+  createTextRecord('Entrada general', { languageCode: 'es' }),
+]);
+
+for (const record of decodeMessage(bytes)) {
+  if (isUriRecord(record)) {
+    console.log(decodeUriRecord(record).uri);
+  }
+}
+```
+
+It covers the parts that are usually missing or wrong elsewhere: chunked record
+reassembly, UTF-16 text records, the URI prefix table in both directions with
+longest-match selection, Smart Posters, Type 2 TLV framing and the Type 4
+capability container.
 
 ## Installation
 

@@ -1,7 +1,7 @@
-import { NfcError } from '../../errors';
-import { encodeMessage } from '../message';
-import { createTextRecord } from '../rtd/text';
-import { MAX_TLV_LENGTH, TlvTag, decodeTlvs, encodeNdefTlv, findNdefMessageTlv } from '../tlv';
+import { NfcError } from '../../errors.js';
+import { encodeMessage } from '../message.js';
+import { createTextRecord } from '../rtd/text.js';
+import { MAX_TLV_LENGTH, TlvTag, decodeTlvs, encodeNdefTlv, findNdefMessageTlv } from '../tlv.js';
 
 function bytes(...values: number[]): Uint8Array {
   return new Uint8Array(values);

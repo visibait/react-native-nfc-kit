@@ -22,8 +22,8 @@
  * value at all.
  */
 
-import { ByteReader, ByteWriter } from './bytes';
-import { invalidArgument, ndefMalformed } from '../errors';
+import { ByteReader, ByteWriter } from './bytes.js';
+import { invalidArgument, ndefMalformed } from '../errors.js';
 
 export const TlvTag = {
   /** Padding. Skipped wherever it appears. */

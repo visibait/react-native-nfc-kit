@@ -1,6 +1,6 @@
-import { NfcError } from '../../errors';
-import { decodeMessage, encodeMessage, encodedMessageLength } from '../message';
-import { Tnf, createRecord } from '../record';
+import { NfcError } from '../../errors.js';
+import { decodeMessage, encodeMessage, encodedMessageLength } from '../message.js';
+import { Tnf, createRecord } from '../record.js';
 
 function bytes(...values: number[]): Uint8Array {
   return new Uint8Array(values);

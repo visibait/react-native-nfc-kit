@@ -11,7 +11,7 @@
  * has no way to tell that from a real one.
  */
 
-import { ByteReader, ByteWriter, concatBytes } from './bytes';
+import { ByteReader, ByteWriter, concatBytes } from './bytes.js';
 import {
   Tnf,
   decodeRecord,
@@ -19,8 +19,8 @@ import {
   encodedRecordLength,
   type NdefRecord,
   type RawRecord,
-} from './record';
-import { ndefMalformed } from '../errors';
+} from './record.js';
+import { ndefMalformed } from '../errors.js';
 
 /**
  * A decoded NDEF message: records in order, chunking already resolved.

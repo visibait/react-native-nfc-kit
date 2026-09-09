@@ -1,5 +1,5 @@
-import { NfcError } from '../../errors';
-import { MIN_CC_LENGTH, NDEF_FILE_CONTROL_TAG, decodeCapabilityContainer } from '../ccFile';
+import { NfcError } from '../../errors.js';
+import { MIN_CC_LENGTH, NDEF_FILE_CONTROL_TAG, decodeCapabilityContainer } from '../ccFile.js';
 
 function bytes(...values: number[]): Uint8Array {
   return new Uint8Array(values);

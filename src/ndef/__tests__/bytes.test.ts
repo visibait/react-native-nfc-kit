@@ -1,4 +1,4 @@
-import { NfcError } from '../../errors';
+import { NfcError } from '../../errors.js';
 import {
   ByteReader,
   ByteWriter,
@@ -12,7 +12,7 @@ import {
   utf16Encode,
   utf8Decode,
   utf8Encode,
-} from '../bytes';
+} from '../bytes.js';
 
 /** Asserts that `run` throws an `NfcError` carrying `code`. */
 function expectNfcError(run: () => unknown, code: string): void {

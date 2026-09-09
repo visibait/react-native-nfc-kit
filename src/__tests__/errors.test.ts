@@ -1,4 +1,4 @@
-import { NfcError, invalidArgument, ndefMalformed } from '../errors';
+import { NfcError, invalidArgument, ndefMalformed } from '../errors.js';
 
 describe('NfcError', () => {
   it('carries the code, message and platform', () => {

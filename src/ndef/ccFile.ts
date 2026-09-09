@@ -20,8 +20,8 @@
  * maximum NDEF file size, and one access byte each for read and write.
  */
 
-import { ByteReader } from './bytes';
-import { ndefMalformed } from '../errors';
+import { ByteReader } from './bytes.js';
+import { ndefMalformed } from '../errors.js';
 
 /** Smallest CC file that can hold the header plus one NDEF File Control TLV. */
 export const MIN_CC_LENGTH = 15;

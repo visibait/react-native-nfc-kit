@@ -13,11 +13,11 @@
  * The prefix identifier indexes the abbreviation table in `../uriPrefixes`.
  */
 
-import { ByteWriter, utf8Decode, utf8Encode } from '../bytes';
-import { invalidArgument, ndefMalformed } from '../../errors';
-import { Tnf, createRecord, type NdefRecord } from '../record';
-import { expandUriPrefix, findUriPrefix } from '../uriPrefixes';
-import { WellKnownType, isWellKnownRecord, wellKnownTypeBytes } from './wellKnown';
+import { ByteWriter, utf8Decode, utf8Encode } from '../bytes.js';
+import { invalidArgument, ndefMalformed } from '../../errors.js';
+import { Tnf, createRecord, type NdefRecord } from '../record.js';
+import { expandUriPrefix, findUriPrefix } from '../uriPrefixes.js';
+import { WellKnownType, isWellKnownRecord, wellKnownTypeBytes } from './wellKnown.js';
 
 export interface CreateUriRecordOptions {
   /**

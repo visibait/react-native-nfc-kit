@@ -11,20 +11,20 @@
  * is why a decoder built only for flat records mangles Smart Posters.
  */
 
-import { ByteReader, ByteWriter, utf8Decode } from '../bytes';
-import { invalidArgument, ndefMalformed } from '../../errors';
-import { decodeMessage, encodeMessage } from '../message';
-import { Tnf, createRecord, type NdefRecord } from '../record';
-import { WellKnownType, isWellKnownRecord, wellKnownTypeBytes } from './wellKnown';
-import { createMimeRecord, isMimeRecord } from './media';
+import { ByteReader, ByteWriter, utf8Decode } from '../bytes.js';
+import { invalidArgument, ndefMalformed } from '../../errors.js';
+import { decodeMessage, encodeMessage } from '../message.js';
+import { Tnf, createRecord, type NdefRecord } from '../record.js';
+import { WellKnownType, isWellKnownRecord, wellKnownTypeBytes } from './wellKnown.js';
+import { createMimeRecord, isMimeRecord } from './media.js';
 import {
   createTextRecord,
   decodeTextRecord,
   isTextRecord,
   type TextEncoding,
   type TextRecordContent,
-} from './text';
-import { createUriRecord, decodeUriRecord, isUriRecord } from './uri';
+} from './text.js';
+import { createUriRecord, decodeUriRecord, isUriRecord } from './uri.js';
 
 /** Type names of the metadata records that may appear inside a Smart Poster. */
 const ACTION_TYPE = 'act';

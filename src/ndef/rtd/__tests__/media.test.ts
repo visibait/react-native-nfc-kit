@@ -1,7 +1,7 @@
-import { NfcError } from '../../../errors';
-import { utf8Encode } from '../../bytes';
-import { decodeMessage, encodeMessage } from '../../message';
-import { Tnf, createRecord } from '../../record';
+import { NfcError } from '../../../errors.js';
+import { utf8Encode } from '../../bytes.js';
+import { decodeMessage, encodeMessage } from '../../message.js';
+import { Tnf, createRecord } from '../../record.js';
 import {
   ANDROID_APPLICATION_RECORD_TYPE,
   createAbsoluteUriRecord,
@@ -15,7 +15,7 @@ import {
   isAbsoluteUriRecord,
   isExternalRecord,
   isMimeRecord,
-} from '../media';
+} from '../media.js';
 
 function expectNfcError(run: () => unknown, code: string, messagePart?: string): void {
   try {

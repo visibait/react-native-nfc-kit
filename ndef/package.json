@@ -1,0 +1,8 @@
+{
+  "//": "Subpath redirect for tooling that predates the exports map (TypeScript's legacy 'node' moduleResolution, older bundlers). Modern resolvers use the exports map in the root package.json and never read this file.",
+  "name": "react-native-nfc-kit/ndef",
+  "private": true,
+  "main": "../build/cjs/ndef/index.js",
+  "module": "../build/esm/ndef/index.js",
+  "types": "../build/cjs/ndef/index.d.ts"
+}

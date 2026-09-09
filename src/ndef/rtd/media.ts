@@ -7,9 +7,9 @@
  * it cannot collide with another app's records the way a bare MIME type can.
  */
 
-import { utf8Decode, utf8Encode } from '../bytes';
-import { invalidArgument } from '../../errors';
-import { Tnf, createRecord, type NdefRecord } from '../record';
+import { utf8Decode, utf8Encode } from '../bytes.js';
+import { invalidArgument } from '../../errors.js';
+import { Tnf, createRecord, type NdefRecord } from '../record.js';
 
 export interface CreateMediaRecordOptions {
   id?: Uint8Array;

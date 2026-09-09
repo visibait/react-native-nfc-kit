@@ -1,0 +1,303 @@
+# The NDEF codec
+
+```ts
+import { ... } from 'react-native-nfc-kit/ndef';
+```
+
+This entry point is plain TypeScript over `Uint8Array`. It imports nothing from
+React Native, nothing from Expo, and nothing native — a lint rule fails the build
+if that ever changes. As a result it works in a bundler, in Node and on the web,
+and it is tested at 100% branch coverage rather than on a device.
+
+You can use it without the rest of the library: to build a message on a server
+before sending it to a phone, to parse bytes captured from a reader, or to write
+tests for your own tag logic.
+
+## Reading a tag
+
+```ts
+import {
+  decodeMessage,
+  isUriRecord,
+  decodeUriRecord,
+  isTextRecord,
+  decodeTextRecord,
+} from 'react-native-nfc-kit/ndef';
+
+for (const record of decodeMessage(bytes)) {
+  if (isUriRecord(record)) {
+    console.log('link:', decodeUriRecord(record).uri);
+  } else if (isTextRecord(record)) {
+    const { text, languageCode } = decodeTextRecord(record);
+    console.log(`text (${languageCode}):`, text);
+  }
+}
+```
+
+Every `decodeXxxRecord` is paired with an `isXxxRecord` guard. Calling a decoder
+on the wrong record type throws `invalidArgument` rather than returning garbage,
+so the guard is not optional politeness — it is how you avoid the throw.
+
+## Writing a tag
+
+```ts
+import {
+  createUriRecord,
+  createTextRecord,
+  encodeMessage,
+  encodedMessageLength,
+} from 'react-native-nfc-kit/ndef';
+
+const records = [
+  createUriRecord('https://www.ventry.es/entrada'),
+  createTextRecord('Entrada general', { languageCode: 'es' }),
+];
+
+// Check the message fits before starting the write. A tag that runs out of room
+// part-way through is left in an undefined state.
+if (encodedMessageLength(records) > tagCapacity) {
+  throw new Error('Message does not fit on this tag');
+}
+
+const bytes = encodeMessage(records);
+```
+
+Encoding an empty list produces the canonical empty message — a single record
+with TNF `0x00` — which is what erasing a tag writes. Producing zero bytes
+instead would leave whatever was previously on the tag partially readable.
+
+## Record types
+
+| Function                         | TNF             | Notes                                              |
+| -------------------------------- | --------------- | -------------------------------------------------- |
+| `createTextRecord`               | Well-known `T`  | UTF-8 by default, UTF-16 supported                 |
+| `createUriRecord`                | Well-known `U`  | Prefix abbreviated automatically                   |
+| `createSmartPosterRecord`        | Well-known `Sp` | Composite: URI plus titles, action, size, icons    |
+| `createMimeRecord`               | MIME media      | Your own bytes under a MIME type                   |
+| `createExternalRecord`           | External        | Namespaced `domain:name`; prefer this for app data |
+| `createAndroidApplicationRecord` | External        | Forces Android dispatch to your package            |
+| `createAbsoluteUriRecord`        | Absolute URI    | Rarely what you want; see below                    |
+| `createRecord`                   | any             | The escape hatch when you need raw control         |
+
+### Which one to use for your own data
+
+Use an **external record**. Its type name is namespaced by a domain you control,
+so it cannot collide with another app's records the way a bare MIME type can:
+
+```ts
+createExternalRecord('ventry.es:ticket', payload);
+```
+
+An **absolute URI record** keeps the URI in the record's _type_ field rather than
+the payload. This surprises almost everyone. For an ordinary link, use the
+well-known URI record (`createUriRecord`) instead.
+
+### URI prefix abbreviation
+
+A URI record stores a one-byte prefix identifier plus the remainder, saving 7–12
+bytes. That is a meaningful fraction of a small tag: an NTAG213 has 144 usable
+bytes.
+
+The longest matching prefix always wins:
+
+```ts
+createUriRecord('https://www.example.com'); // prefix 0x02 "https://www."
+createUriRecord('https://example.com'); // prefix 0x04 "https://"
+createUriRecord('urn:epc:id:sgtin:...'); // prefix 0x1e, not the shorter 0x13 "urn:"
+```
+
+Disable it only for a reader known to mishandle the table:
+
+```ts
+createUriRecord(uri, { noPrefixAbbreviation: true });
+```
+
+Reserved prefix identifiers expand to nothing rather than throwing, so a tag
+written against a later revision of the table still yields a usable URI.
+
+### Text records and UTF-16
+
+A text record's status byte selects the encoding. Bit 7 means UTF-16, and plenty
+of Windows and Java writers set it:
+
+```ts
+const { text, languageCode, encoding } = decodeTextRecord(record);
+// encoding is 'utf-8' or 'utf-16' — both decode correctly
+```
+
+Writing UTF-16 is supported but rarely worth it; UTF-8 is smaller and more widely
+handled.
+
+```ts
+createTextRecord('パンフレット', { languageCode: 'ja', encoding: 'utf-16' });
+```
+
+The status byte's bit 6 is reserved and the specification says it must be zero.
+This library never sets it when writing, and ignores it when reading — some
+writers set it, and refusing to read those tags would be worse than tolerating a
+bit that carries no meaning.
+
+### Smart Posters
+
+A Smart Poster's payload is itself a complete NDEF message, with its own record
+framing. That is why a decoder built only for flat records mangles them.
+
+```ts
+const record = createSmartPosterRecord('https://www.example.com/brochure.pdf', {
+  titles: [
+    { text: 'Brochure', languageCode: 'en' },
+    { text: 'Folleto', languageCode: 'es' },
+  ],
+  action: SmartPosterAction.Save,
+  size: 1_048_576,
+  mimeType: 'application/pdf',
+  icons: [{ mimeType: 'image/png', data: pngBytes }],
+});
+```
+
+Inner records the decoder does not recognise are returned in `unknown` rather
+than dropped, so a lossy read never looks like a complete one.
+
+## Chunked records
+
+A record can set the Chunk Flag to continue its payload in the records that
+follow. `decodeMessage` reassembles those transparently: you get one record with
+the full payload, and never see `CF`.
+
+This matters more than it sounds. A decoder that ignores the flag does not fail
+loudly — it returns a truncated payload that looks plausible.
+
+The encoder deliberately never _emits_ chunks. Chunking exists so a writer can
+stream a payload whose length it does not yet know, which never applies once the
+payload is a `Uint8Array` in memory.
+
+## Tag-level framing
+
+The NDEF message is usually not the first thing in tag memory.
+
+### Type 2 tags (NTAG, MIFARE Ultralight)
+
+The message sits inside a TLV block, alongside lock and memory control blocks the
+manufacturer wrote when the tag was formatted. Feeding a raw data area to
+`decodeMessage` fails, because the first byte is a TLV tag, not a record header.
+
+```ts
+import { findNdefMessageTlv, encodeNdefTlv, decodeMessage } from 'react-native-nfc-kit/ndef';
+
+const messageBytes = findNdefMessageTlv(dataArea); // undefined if there is none
+const records = messageBytes ? decodeMessage(messageBytes) : [];
+
+// Writing back:
+const newDataArea = encodeNdefTlv(encodeMessage(records));
+```
+
+`findNdefMessageTlv` returns `undefined` when the tag is formatted but holds no
+NDEF block — deliberately distinct from holding an empty message, because you may
+want to write rather than report a read failure.
+
+### Type 4 tags (DESFire, Java Card applets)
+
+The message lives in its own elementary file, and the capability container says
+which file, how large it may grow, and whether it is readable and writable.
+
+```ts
+import { decodeCapabilityContainer } from 'react-native-nfc-kit/ndef';
+
+const cc = decodeCapabilityContainer(ccBytes);
+
+if (!cc.ndefFile) throw new Error('Tag is not NDEF capable');
+if (!cc.ndefFile.readable) throw new Error('NDEF file requires authentication');
+
+console.log('select file', cc.ndefFile.fileId.toString(16)); // e.g. e104
+console.log('max message size', cc.ndefFile.maxFileSize);
+console.log('read at most', cc.maxReadSize, 'bytes per command');
+```
+
+`writable` being `false` covers two different situations, and the difference
+matters when you are deciding what to tell the user:
+
+```ts
+cc.ndefFile.permanentlyReadOnly; // true  → locked for good, nothing to do
+cc.ndefFile.permanentlyReadOnly; // false → needs proprietary authentication
+```
+
+## Byte helpers
+
+```ts
+import {
+  toHex,
+  fromHex,
+  utf8Encode,
+  utf8Decode,
+  concatBytes,
+  bytesEqual,
+} from 'react-native-nfc-kit/ndef';
+
+toHex(uid); // '04a2b3c4d5e6f0'
+toHex(uid, ':'); // '04:a2:b3:c4:d5:e6:f0'
+fromHex('A0 00 00 02 47 10 01'); // spaces, colons and dashes are all tolerated
+```
+
+`fromHex` tolerates spaces, colons and dashes because that is how AIDs and keys
+appear in datasheets.
+
+UTF-8 and UTF-16 are implemented here rather than delegating to
+`TextEncoder`/`TextDecoder`, so no polyfill is ever required on any engine. UTF-8
+decoding is strict: overlong forms, encoded surrogates and out-of-range code
+points are rejected rather than replaced with U+FFFD, because for tag data a
+replacement character is a silent corruption you discover much later.
+
+## Errors
+
+Everything throws `NfcError` with a machine-readable `code`:
+
+| Code              | Meaning                                          |
+| ----------------- | ------------------------------------------------ |
+| `invalidArgument` | Your input was wrong — a bug in the calling code |
+| `ndefMalformed`   | The bytes are not a well-formed NDEF structure   |
+
+```ts
+import { NfcError } from 'react-native-nfc-kit/ndef';
+
+try {
+  decodeMessage(bytes);
+} catch (error) {
+  if (NfcError.is(error, 'ndefMalformed')) {
+    // The message names the byte offset and the field that failed
+    console.warn('Bad tag:', error.message);
+  } else {
+    throw error;
+  }
+}
+```
+
+Malformed-input errors name the offset and the field, so a bug report says which
+byte was missing rather than just "invalid tag".
+
+Use `NfcError.is()` rather than `instanceof`: it brands on the error's name, so it
+keeps working when two copies of the package end up in one bundle.
+
+## Strictness, and where it is deliberately relaxed
+
+Decoding is strict where leniency would hide corruption, and lenient where
+strictness would make valid tags unreadable.
+
+**Rejected:**
+
+- A message with no Message Begin or no Message End flag
+- Trailing bytes after the last record
+- A chunk chain that never closes, or a continuation carrying a type or ID
+- A payload length that runs past the available bytes
+- Overlong UTF-8, encoded surrogates, odd-length UTF-16
+- A TLV using the 3-byte length form for a length that fits in one byte
+- A capability container whose declared length exceeds what was read
+
+**Accepted:**
+
+- Zero bytes, decoded as an empty message — what a formatted but never-written
+  tag reads back as
+- A Type 2 data area that ends with no terminator TLV — a tag whose data area is
+  exactly full has no room for one
+- A text record with the reserved status bit set
+- Reserved URI prefix identifiers and unknown TNF values
+- Unrecognised records inside a Smart Poster, returned rather than dropped

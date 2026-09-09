@@ -1,5 +1,5 @@
-import { NfcError } from '../../errors';
-import { ByteReader, ByteWriter } from '../bytes';
+import { NfcError } from '../../errors.js';
+import { ByteReader, ByteWriter } from '../bytes.js';
 import {
   SHORT_RECORD_MAX_PAYLOAD,
   Tnf,
@@ -9,7 +9,7 @@ import {
   encodeRecord,
   encodedRecordLength,
   isTnf,
-} from '../record';
+} from '../record.js';
 
 function bytes(...values: number[]): Uint8Array {
   return new Uint8Array(values);

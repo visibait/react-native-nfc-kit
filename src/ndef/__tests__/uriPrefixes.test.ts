@@ -1,4 +1,9 @@
-import { MAX_URI_PREFIX_CODE, URI_PREFIXES, expandUriPrefix, findUriPrefix } from '../uriPrefixes';
+import {
+  MAX_URI_PREFIX_CODE,
+  URI_PREFIXES,
+  expandUriPrefix,
+  findUriPrefix,
+} from '../uriPrefixes.js';
 
 describe('URI_PREFIXES', () => {
   it('has the 36 entries the specification defines', () => {

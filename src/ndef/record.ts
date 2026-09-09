@@ -22,8 +22,8 @@
  * plausible. That is the worst possible outcome, so it is handled here.
  */
 
-import { ByteReader, ByteWriter, EMPTY_BYTES } from './bytes';
-import { invalidArgument, ndefMalformed } from '../errors';
+import { ByteReader, ByteWriter, EMPTY_BYTES } from './bytes.js';
+import { invalidArgument, ndefMalformed } from '../errors.js';
 
 /**
  * Type Name Format: how to interpret a record's `type` field.

@@ -20,10 +20,10 @@
  * Java stacks.
  */
 
-import { ByteWriter, utf16Decode, utf16Encode, utf8Decode, utf8Encode } from '../bytes';
-import { invalidArgument, ndefMalformed } from '../../errors';
-import { Tnf, createRecord, type NdefRecord } from '../record';
-import { WellKnownType, isWellKnownRecord, wellKnownTypeBytes } from './wellKnown';
+import { ByteWriter, utf16Decode, utf16Encode, utf8Decode, utf8Encode } from '../bytes.js';
+import { invalidArgument, ndefMalformed } from '../../errors.js';
+import { Tnf, createRecord, type NdefRecord } from '../record.js';
+import { WellKnownType, isWellKnownRecord, wellKnownTypeBytes } from './wellKnown.js';
 
 const STATUS_UTF16 = 0x80;
 const STATUS_RFU = 0x40;

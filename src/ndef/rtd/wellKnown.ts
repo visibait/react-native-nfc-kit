@@ -5,8 +5,8 @@
  * only when the TNF is `WellKnown` (0x01).
  */
 
-import { bytesEqual, utf8Encode } from '../bytes';
-import { Tnf, type NdefRecord } from '../record';
+import { bytesEqual, utf8Encode } from '../bytes.js';
+import { Tnf, type NdefRecord } from '../record.js';
 
 /**
  * The well-known type names this library knows about.

@@ -15,7 +15,7 @@
  *    and producing `NaN` two functions later.
  */
 
-import { invalidArgument, ndefMalformed } from '../errors';
+import { invalidArgument, ndefMalformed } from '../errors.js';
 
 /** A `Uint8Array` of length 0, shared to avoid pointless allocation. */
 export const EMPTY_BYTES: Uint8Array = new Uint8Array(0);

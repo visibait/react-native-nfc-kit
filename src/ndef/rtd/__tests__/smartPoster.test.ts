@@ -1,17 +1,17 @@
-import { NfcError } from '../../../errors';
-import { utf8Encode } from '../../bytes';
-import { decodeMessage, encodeMessage } from '../../message';
-import { Tnf, createRecord, type NdefRecord } from '../../record';
-import { createMimeRecord } from '../media';
+import { NfcError } from '../../../errors.js';
+import { utf8Encode } from '../../bytes.js';
+import { decodeMessage, encodeMessage } from '../../message.js';
+import { Tnf, createRecord, type NdefRecord } from '../../record.js';
+import { createMimeRecord } from '../media.js';
 import {
   SmartPosterAction,
   createSmartPosterRecord,
   decodeSmartPosterRecord,
   isSmartPosterRecord,
-} from '../smartPoster';
-import { createTextRecord } from '../text';
-import { createUriRecord } from '../uri';
-import { wellKnownTypeBytes } from '../wellKnown';
+} from '../smartPoster.js';
+import { createTextRecord } from '../text.js';
+import { createUriRecord } from '../uri.js';
+import { wellKnownTypeBytes } from '../wellKnown.js';
 
 function expectNfcError(run: () => unknown, code: string, messagePart?: string): void {
   try {

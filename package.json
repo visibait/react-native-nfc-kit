@@ -15,12 +15,23 @@
         "default": "./build/cjs/index.js"
       }
     },
+    "./ndef": {
+      "import": {
+        "types": "./build/esm/ndef/index.d.ts",
+        "default": "./build/esm/ndef/index.js"
+      },
+      "require": {
+        "types": "./build/cjs/ndef/index.d.ts",
+        "default": "./build/cjs/ndef/index.js"
+      }
+    },
     "./package.json": "./package.json"
   },
   "sideEffects": false,
   "files": [
     "build",
     "plugin/build",
+    "ndef",
     "mocks",
     "ios",
     "android",
