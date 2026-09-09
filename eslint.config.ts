@@ -62,6 +62,14 @@ export default defineConfig([
       eqeqeq: ['error', 'always', { null: 'ignore' }],
       'no-console': ['error', { allow: ['warn', 'error'] }],
       'prefer-const': 'error',
+      // The library uses `const X = {...} as const` paired with
+      // `type X = (typeof X)[keyof typeof X]` instead of a TypeScript `enum`,
+      // so the runtime value and the type always agree. A `.d.ts` declaring an
+      // `enum` while the runtime ships a plain object is a lie the compiler
+      // cannot catch, and is exactly what the library this replaces shipped.
+      // This rule does not model that value/type pairing; TypeScript itself
+      // still rejects a genuine redeclaration.
+      '@typescript-eslint/no-redeclare': 'off',
       'object-shorthand': 'error',
     },
   },
