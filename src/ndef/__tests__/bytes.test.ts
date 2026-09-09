@@ -243,6 +243,16 @@ describe('ByteReader', () => {
     expect(reader.exhausted).toBe(true);
   });
 
+  it('reads a big-endian u16', () => {
+    expect(new ByteReader(new Uint8Array([0x01, 0x2c])).u16be()).toBe(300);
+    expect(new ByteReader(new Uint8Array([0xff, 0xff])).u16be()).toBe(0xffff);
+  });
+
+  it('names the field in a u16be overrun, and falls back to a default name', () => {
+    expectNfcError(() => new ByteReader(new Uint8Array([0x01])).u16be('CCLEN'), 'ndefMalformed');
+    expectNfcError(() => new ByteReader(new Uint8Array([0x01])).u16be(), 'ndefMalformed');
+  });
+
   it('reads a big-endian u32 as unsigned', () => {
     const reader = new ByteReader(new Uint8Array([0xff, 0xff, 0xff, 0xff]));
     expect(reader.u32be()).toBe(0xffffffff);
@@ -317,6 +327,17 @@ describe('ByteWriter', () => {
 
     expect(writer.size).toBe(7);
     expect(Array.from(writer.toBytes())).toEqual([0xd1, 0x01, 0x02, 0x03, 0x04, 0xaa, 0xbb]);
+  });
+
+  it('writes a big-endian u16', () => {
+    expect(Array.from(new ByteWriter().u16be(300).toBytes())).toEqual([0x01, 0x2c]);
+    expect(Array.from(new ByteWriter().u16be(0xffff).toBytes())).toEqual([0xff, 0xff]);
+  });
+
+  it('round-trips u16be through the reader', () => {
+    for (const value of [0, 1, 0xff, 0x100, 0xfffe, 0xffff]) {
+      expect(new ByteReader(new ByteWriter().u16be(value).toBytes()).u16be()).toBe(value);
+    }
   });
 
   it('masks a value wider than a byte', () => {

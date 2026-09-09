@@ -356,6 +356,13 @@ export class ByteReader {
     return value;
   }
 
+  /** Reads a big-endian unsigned 16-bit integer. */
+  u16be(what = 'length'): number {
+    const high = this.u8(what);
+    const low = this.u8(what);
+    return (high << 8) | low;
+  }
+
   /** Reads a big-endian unsigned 32-bit integer. */
   u32be(what = 'length'): number {
     const b0 = this.u8(what);
@@ -411,6 +418,14 @@ export class ByteWriter {
     this.ensure(1);
     this.buffer[this.length] = value & 0xff;
     this.length += 1;
+    return this;
+  }
+
+  u16be(value: number): this {
+    this.ensure(2);
+    this.buffer[this.length] = (value >>> 8) & 0xff;
+    this.buffer[this.length + 1] = value & 0xff;
+    this.length += 2;
     return this;
   }
 
