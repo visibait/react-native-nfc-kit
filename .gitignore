@@ -1,0 +1,47 @@
+# Build output
+build/
+plugin/build/
+lib/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# Test output
+coverage/
+
+# Native — generated
+ios/Pods/
+ios/build/
+ios/*.xcworkspace
+ios/.xcode.env.local
+android/build/
+android/.cxx/
+android/.gradle/
+android/local.properties
+*.keystore
+!debug.keystore
+
+# Expo prebuild output in the example app
+example/ios/
+example/android/
+example/.expo/
+example/dist/
+
+# Editors and OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log
+.eslintcache
+
+# Env
+.env
+.env.local
