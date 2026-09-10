@@ -33,6 +33,7 @@ import {
   type NativeHceOptions,
   type NativeHceStarted,
   type NativeNdefStatus,
+  type NativeNfcAntennaInfo,
   type NativeNfcKitModule,
   type NativeSessionOptions,
   type NativeSubscription,
@@ -145,6 +146,10 @@ const CAPABILITIES: NativeCapabilities = {
   pollingFrames: false,
   backgroundReading: false,
   vas: false,
+  // A page is given interpreted records and nothing about the hardware
+  // underneath -- not where the antenna is, and not what the NFC settings say.
+  antennaInfo: false,
+  secureNfc: false,
 };
 
 class WebNfcModule implements NativeNfcKitModule {
@@ -212,6 +217,18 @@ class WebNfcModule implements NativeNfcKitModule {
 
   async openSettings(): Promise<void> {
     throw unsupported('Opening the NFC settings', 'a page cannot open system settings.');
+  }
+
+  async getAntennaInfo(): Promise<NativeNfcAntennaInfo | null> {
+    // Null rather than a rejection: Web NFC describes no hardware at all, and a
+    // caller drawing a "hold the card here" hint already has to cope with a
+    // device that does not say.
+    return null;
+  }
+
+  async isSecureNfcEnabled(): Promise<boolean> {
+    // A browser has no such setting to report.
+    return false;
   }
 
   /* -- Sessions ------------------------------------------------------------ */

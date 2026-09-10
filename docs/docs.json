@@ -64,7 +64,7 @@
           {
             "group": "Reference",
             "icon": "list",
-            "pages": ["errors", "device-matrix"]
+            "pages": ["errors", "device-matrix", "antenna-location"]
           },
           {
             "group": "Coming from elsewhere",

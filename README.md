@@ -127,6 +127,8 @@ runtime, and the types tell you before that.
 | Card emulation (HCE)         | entitlement, EEA only |   ✅    |      —       |
 | Observe mode, polling frames |           —           | API 35+ |      —       |
 | Apple Wallet passes (VAS)    |      entitlement      |    —    |      —       |
+| Antenna location             |           —           | API 34+ |      —       |
+| Secure NFC status            |           —           | API 29+ |      —       |
 
 <br>
 
