@@ -58,7 +58,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "verify:package": "npm run build && npm pack --silent --pack-destination .tmp && publint .tmp/*.tgz && attw .tmp/*.tgz",
+    "verify:package": "node internal/module_scripts/verify-package.js",
     "prepare": "npm run build",
     "open:ios": "node internal/module_scripts/open-ios.js",
     "open:android": "node internal/module_scripts/open-android.js",
