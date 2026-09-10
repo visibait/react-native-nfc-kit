@@ -3,8 +3,9 @@
 A modern NFC library for React Native and Expo. Built on the Expo Modules API with
 Swift and Kotlin, New Architecture native, and typed end to end.
 
-> **Status: pre-release (`0.0.0`).** The NDEF codec is complete and usable today.
-> The reader and session API lands next. See [the roadmap](#roadmap).
+> **Status: pre-release (`0.0.0`).** The NDEF codec, the session API and both
+> native implementations are in place and building in CI. Not yet validated
+> against real tags on real hardware -- see [the roadmap](#roadmap).
 
 ## Why another NFC library
 
@@ -117,6 +118,23 @@ npx pod-install
 There is no `prebuild` in a bare project, so entitlements and the Android manifest are
 edited by hand. Every page under `docs/setup/` documents both routes: the plugin option
 for Expo, and the exact plist/XML for bare.
+
+## How this is verified
+
+Nothing here is claimed to work because it looks right.
+
+| What                  | How                                                                                                                                    |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| NDEF codec            | 571 unit tests, 100% branch coverage, byte fixtures from real tags                                                                     |
+| Session and tag API   | Tests against a scripted fake native module, plus `@ts-expect-error` assertions proving an unguarded `tag.readNdef()` does not compile |
+| Android               | `compileDebugKotlin` and a full `assembleDebug` in CI, plus a check that autolinking really registers the module                       |
+| iOS                   | `pod install` and `xcodebuild` on a macOS runner against real CoreNFC; `npm run check:swift` gives a local syntax check anywhere       |
+| Config plugin         | `expo prebuild` in CI, then the generated manifest and entitlements are grepped for what the plugin should have written                |
+| The published package | `publint` and `arethetypeswrong` against a packed tarball, so a broken `exports` map fails before a user finds it                      |
+
+**What none of that covers:** behaviour against a real tag. No emulator or
+simulator can present one. Hardware validation is tracked separately and is a
+release requirement, not an afterthought.
 
 ## Roadmap
 
