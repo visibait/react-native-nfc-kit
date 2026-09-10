@@ -119,6 +119,14 @@ but it needs an Apple-granted entitlement and works only in the EEA, so
 `hce.isSupported()` answers `false` there. See
 [docs/setup/hce.md](docs/setup/hce.md).
 
+### In a browser
+
+The same API works on the web, backed by Web NFC, with no import changes: the native
+boundary is a small session-based contract, and the web build implements it. Chrome
+on Android only, NDEF only, and the calls a browser cannot serve reject
+`unsupportedPlatform` rather than pretending. See
+[docs/setup/web.md](docs/setup/web.md).
+
 The emulated card is plain TypeScript — `createType4Card` answers the same APDU
 sequence a DESFire does — so it is tested by playing a reader's whole conversation
 through it rather than on a device.
@@ -203,6 +211,7 @@ in CI, so the two cannot drift apart.
 | Handle a tag that launches your app      | [docs/setup/background-reading.md](docs/setup/background-reading.md) |
 | Emulate a card for a terminal            | [docs/setup/hce.md](docs/setup/hce.md)                               |
 | Read an Apple Wallet pass                | [docs/setup/vas.md](docs/setup/vas.md)                               |
+| Read a tag from a browser                | [docs/setup/web.md](docs/setup/web.md)                               |
 | Install into a bare React Native project | [docs/setup/bare-react-native.md](docs/setup/bare-react-native.md)   |
 
 ## How this is verified
@@ -218,6 +227,7 @@ Nothing here is claimed to work because it looks right.
 | Protocol layers       | 247 unit tests, 100% branch coverage: ISO 7816 chaining and `61xx`/`6Cxx`, ISO 15693, FeliCa, NTAG/Ultralight                          |
 | React hooks           | 26 tests through `renderHook`, including the unmount races: a scan cancelled by navigating away, an answer arriving after unmount      |
 | Background tags       | Tested against the fake native module: the launch tag is consumed once, every tag is released even when its handler throws             |
+| Web NFC shim          | The record mapping is round-tripped in both directions, and the whole boundary is driven through a fake `NDEFReader`                   |
 | Wallet passes         | Validation and decoding tested against the fake native module; the read itself needs an entitlement Apple grants case by case          |
 | Card emulation        | The emulated Type 4 tag is driven through a whole reader conversation, using the same functions an app uses to talk to a real card     |
 | Config plugin         | 104 tests through Expo's own introspection compiler, so the assertions are about what `expo prebuild` produces                         |

@@ -135,7 +135,13 @@ export type TagLostReporting = (typeof TAG_LOST_REPORTING)[number];
 
 /** What native reports it can actually do on this device and OS version. */
 export interface NativeCapabilities {
-  readonly platform: 'ios' | 'android';
+  /**
+   * Which implementation answered.
+   *
+   * `web` is real: the Web NFC shim implements this same contract, so everything
+   * above this boundary works in a browser without knowing it.
+   */
+  readonly platform: 'ios' | 'android' | 'web';
   readonly osVersion: string;
   /** Technologies reachable on this device. Chipset-dependent on Android. */
   readonly techs: readonly string[];

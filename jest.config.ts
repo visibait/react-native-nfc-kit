@@ -51,7 +51,7 @@ const config: Config = {
     {
       displayName: 'pure',
       testEnvironment: 'node',
-      roots: existingRoots('src/__tests__', 'src/ndef', 'src/protocols'),
+      roots: existingRoots('src/__tests__', 'src/ndef', 'src/protocols', 'src/web'),
       transform: {
         // Jest does not substitute <rootDir> inside transform options, so the
         // path is resolved here. Being a TypeScript config, it can just do that.
@@ -91,7 +91,6 @@ const config: Config = {
     '!**/__tests__/**',
     '!**/*.test.{ts,tsx}',
     '!**/index.ts',
-    '!src/**/*.web.ts',
   ],
   coverageReporters: ['text-summary', 'lcov'],
   coverageThreshold: {
@@ -111,6 +110,15 @@ const config: Config = {
       statements: 100,
     },
     './src/protocols/': {
+      branches: 100,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
+    // The Web NFC shim implements the same native contract, so it is measured like
+    // any other implementation of it. There is no hardware in the way: a fake
+    // `NDEFReader` is all a browser's half of this needs.
+    './src/web/': {
       branches: 100,
       functions: 100,
       lines: 100,

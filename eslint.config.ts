@@ -83,6 +83,29 @@ export default defineConfig([
     rules: PURE_LAYER_RESTRICTIONS,
   },
   {
+    // A web bundle has no React Native and no Expo modules. Importing either here
+    // would fail at bundle time on the one platform these files exist for, which
+    // is a mistake no type check can catch.
+    files: ['src/**/*.web.ts', 'src/web/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-native',
+              message: 'A web bundle has no React Native; use platform-free code here.',
+            },
+            {
+              name: 'expo-modules-core',
+              message: 'There is no native module on the web; this file is what replaces it.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/__tests__/**/*.ts', '**/*.test.ts', '**/*.test.tsx'],
     rules: {
       'no-restricted-imports': 'off',

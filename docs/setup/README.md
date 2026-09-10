@@ -25,6 +25,7 @@ and compared against these files in CI, so the two routes cannot drift apart.
 | Handle a tag that launches your app           | [background-reading.md](background-reading.md) |
 | Emulate a card for a terminal                 | [hce.md](hce.md)                               |
 | Read an Apple Wallet pass                     | [vas.md](vas.md)                               |
+| Read a tag from a browser                     | [web.md](web.md)                               |
 | Install into a bare React Native project      | [bare-react-native.md](bare-react-native.md)   |
 
 ## Before anything else: you need a development build
