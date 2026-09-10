@@ -388,6 +388,13 @@ internal final class IosTagHandle: @unchecked Sendable {
    The first two bytes of `data` are taken as the request flags and the command
    code, matching the wire order an ISO 15693 command actually has, so a caller
    who knows the protocol can send the same bytes they would on Android.
+
+   The catch, and it is a real one: CoreNFC exposes a typed method per standard
+   command and `customCommand` only for the custom range. So a standard command
+   code cannot go through here at all, and the limitation is reported plainly
+   rather than handed to `customCommand` to fail with something opaque. Routing
+   standard codes to their typed CoreNFC methods needs additions to the native
+   contract and is a follow-up.
    */
   private func sendIso15693(_ tag: any NFCISO15693Tag, _ data: Data) async throws -> Data {
     guard data.count >= 2 else {
@@ -400,6 +407,21 @@ internal final class IosTagHandle: @unchecked Sendable {
     let flags = NFCISO15693RequestFlag(rawValue: data[data.startIndex])
     let commandCode = Int(data[data.startIndex + 1])
     let parameters = Data(data.dropFirst(2))
+
+    // The ISO 15693 custom command range. Anything outside it is a standard
+    // command, which CoreNFC only offers through its own typed methods.
+    guard (0xa0...0xdf).contains(commandCode) else {
+      throw NfcException(
+        NfcErrorCode.techUnavailable,
+        String(
+          format:
+            "CoreNFC cannot send the standard ISO 15693 command 0x%02X. It exposes a typed method "
+            + "per standard command and a raw path only for the custom range 0xA0-0xDF, so this "
+            + "works on Android but not on iOS. Guard it with tag.android, or use a custom command.",
+          commandCode
+        )
+      )
+    }
 
     return try await withOneShot { oneShot in
       tag.customCommand(requestFlags: flags, customCommandCode: commandCode, customRequestParameters: parameters) { response, error in

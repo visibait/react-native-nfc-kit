@@ -63,6 +63,28 @@ export {
 
 export type { TagVersion, UltralightTransport } from './ultralight.js';
 
+export {
+  CUSTOM_COMMAND_MAX,
+  CUSTOM_COMMAND_MIN,
+  DEFAULT_FLAGS,
+  buildRequest,
+  customCommand,
+  describeErrorCode,
+  getSystemInformation,
+  lockBlock,
+  parseResponse,
+  readMultipleBlocks,
+  readSingleBlock,
+  sendRequest,
+  writeSingleBlock,
+} from './iso15693.js';
+
+// Namespaced rather than spread: `Command` and `RequestFlag` are generic enough
+// names that a bare export would collide the moment another protocol needs one.
+export { Command as Iso15693Command, RequestFlag as Iso15693RequestFlag } from './iso15693.js';
+
+export type { BuildRequestOptions, Iso15693Transport, SystemInformation } from './iso15693.js';
+
 export type {
   ApduTransport,
   CommandApdu,
