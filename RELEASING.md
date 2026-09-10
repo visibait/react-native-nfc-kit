@@ -20,13 +20,28 @@ publishers**, add a GitHub Actions publisher with:
 | Repository           | `react-native-nfc-kit` |
 | Workflow filename    | `release.yml`          |
 
+Leave **Environment** empty: this workflow does not use a GitHub environment, and a
+value there would never match.
+
 **The workflow filename is part of the trust configuration.** Renaming
 `.github/workflows/release.yml` breaks publishing until this is updated, and the
 failure looks like an authentication error rather than a configuration one.
 
+**npm does not validate any of this when you save it.** Its own documentation says
+so: a wrong repository or filename surfaces only on the first publish attempt. So
+check the three values against this table rather than trusting the form.
+
 The package must exist on npm first. For the very first publish, either create it
 with a manual `npm publish` from a machine that is logged in, or reserve the name
-and then let the workflow take over.
+and then let the workflow take over. `0.9.0` was published that way, which is why it
+carries no provenance attestations — those begin with the first release the workflow
+makes.
+
+Once trusted publishing has published successfully at least once, tighten the
+package's **Settings → Publishing access** to _"Require two-factor authentication and
+disallow tokens"_. That is npm's own recommendation, and it is what makes the absence
+of a token here a guarantee rather than a preference: with it set, nothing can publish
+this package except this workflow.
 
 ## The everyday flow
 
