@@ -146,8 +146,23 @@ npx pod-install
 ```
 
 There is no `prebuild` in a bare project, so entitlements and the Android manifest are
-edited by hand. Every page under `docs/setup/` documents both routes: the plugin option
-for Expo, and the exact plist/XML for bare.
+edited by hand. See [docs/setup/bare-react-native.md](docs/setup/bare-react-native.md).
+
+## Setup, per use case
+
+Most NFC support questions are setup questions, so each page covers one case and
+gives both routes — the Expo plugin option, and the exact plist and manifest XML
+for a bare project. The bare snippets are generated from the plugin and compared
+in CI, so the two cannot drift apart.
+
+| You want to                              | Page                                                                 |
+| ---------------------------------------- | -------------------------------------------------------------------- |
+| Read or write NDEF tags                  | [docs/setup/ndef.md](docs/setup/ndef.md)                             |
+| Send APDUs to a smartcard                | [docs/setup/iso7816.md](docs/setup/iso7816.md)                       |
+| Read FeliCa cards                        | [docs/setup/felica.md](docs/setup/felica.md)                         |
+| Read MIFARE Classic                      | [docs/setup/mifare-classic.md](docs/setup/mifare-classic.md)         |
+| Handle a tag that launches your app      | [docs/setup/background-reading.md](docs/setup/background-reading.md) |
+| Install into a bare React Native project | [docs/setup/bare-react-native.md](docs/setup/bare-react-native.md)   |
 
 ## How this is verified
 

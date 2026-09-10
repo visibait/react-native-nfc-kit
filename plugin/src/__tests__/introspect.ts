@@ -35,13 +35,17 @@ function baseConfig(overrides: Partial<ExportedConfig> = {}): BaseConfig {
 export async function introspectAsync(
   props?: NfcKitPluginProps,
   overrides: Partial<ExportedConfig> = {},
+  // `applyPlugin: false` gives the untouched prebuild templates, which the setup
+  // documentation is diffed against so a snippet cannot omit something.
+  { applyPlugin = true }: { applyPlugin?: boolean } = {},
 ): Promise<IntrospectionResult> {
   // A real directory, because a dangerous mod that slipped through would
   // otherwise write somewhere unpredictable. Nothing is expected to appear here.
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nfc-kit-plugin-'));
 
   try {
-    const config = withNfcKit(baseConfig(overrides) as ExportedConfig, props);
+    const base = baseConfig(overrides) as ExportedConfig;
+    const config = applyPlugin ? withNfcKit(base, props) : base;
     const compiled = await compileModsAsync(config, {
       projectRoot,
       introspect: true,

@@ -29,10 +29,17 @@
         {
           "readerUsageDescription": "Hold your card near the top of the phone.",
           "ios": {
-            "formats": ["ndef", "tag"]
+            "formats": ["ndef", "tag"],
+            "selectIdentifiers": ["A0000002471001"],
+            "felicaSystemCodes": ["12FC"]
           },
           "android": {
-            "requireNfcHardware": false
+            "requireNfcHardware": false,
+            "backgroundReading": {
+              "ndef": [{ "mimeType": "application/vnd.nfckit.example" }],
+              "techLists": [["isoDep"], ["mifareUltralight", "ndef"]]
+            },
+            "dispatchNfcMessagePermission": false
           }
         }
       ]

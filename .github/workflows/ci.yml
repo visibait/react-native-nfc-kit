@@ -115,7 +115,24 @@ jobs:
           grep -q 'android.permission.NFC' "$manifest"
           grep -q 'android:name="android.hardware.nfc" android:required="false"' "$manifest"
           grep -q 'android:launchMode="singleTop"' "$manifest"
-          echo "AndroidManifest contains the NFC permission, the optional hardware feature and singleTop."
+          grep -q 'android.nfc.action.NDEF_DISCOVERED' "$manifest"
+          grep -q 'android:mimeType="application/vnd.nfckit.example"' "$manifest"
+          grep -q 'android.nfc.action.TECH_DISCOVERED' "$manifest"
+          grep -q '@xml/nfc_kit_tech_filter' "$manifest"
+          # The example sets dispatchNfcMessagePermission to false, so the
+          # permission must be absent. An option that is ignored is worse than one
+          # that is missing, because it reads as if it worked.
+          #
+          # Spelled out rather than `! grep -q ...`: POSIX disables `set -e` for a
+          # command whose status is inverted by `!`, so that form never fails.
+          if grep -q 'DISPATCH_NFC_MESSAGE' "$manifest"; then
+            echo "DISPATCH_NFC_MESSAGE was written even though the example turned it off." >&2
+            exit 1
+          fi
+          techFilter=android/app/src/main/res/xml/nfc_kit_tech_filter.xml
+          grep -q 'android.nfc.tech.IsoDep' "$techFilter"
+          grep -q 'android.nfc.tech.MifareUltralight' "$techFilter"
+          echo "AndroidManifest and the generated tech filter contain what the plugin should have written."
 
       - name: Compile the Kotlin module
         working-directory: example/android
@@ -174,7 +191,12 @@ jobs:
           grep -q 'com.apple.developer.nfc.readersession.formats' "$entitlements"
           grep -q 'TAG' "$entitlements"
           grep -q 'NFCReaderUsageDescription' "$plist"
-          echo "Entitlements carry the reader-session format and Info.plist has a usage description."
+          # These two are what decide whether iOS hands a tag over at all, so a
+          # plugin that silently dropped them would look fine until a card is
+          # tapped.
+          grep -q 'A0000002471001' "$plist"
+          grep -q '12FC' "$plist"
+          echo "Entitlements carry the reader-session format; Info.plist has the usage description, the AID and the FeliCa system code."
 
       - name: Pod install
         working-directory: example/ios
