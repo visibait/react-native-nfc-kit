@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 
 import type { Config } from 'jest';
@@ -11,6 +12,22 @@ import type { Config } from 'jest';
 const RESOLVE_TS_FROM_JS_SPECIFIER: Record<string, string> = {
   '^(\\.{1,2}/.*)\\.js$': '$1',
 };
+
+/**
+ * Keeps only the roots that exist on disk.
+ *
+ * Layers arrive one milestone at a time, and git does not track an empty
+ * directory -- so a root created on one machine is simply absent in a fresh
+ * clone, and Jest refuses to start with a validation error rather than skipping
+ * it. That failed in CI while passing locally, which is the worst shape a
+ * configuration bug can take: the machine that would notice is the one that
+ * cannot.
+ */
+function existingRoots(...roots: readonly string[]): string[] {
+  return roots
+    .filter((root) => fs.existsSync(path.join(__dirname, root)))
+    .map((root) => `<rootDir>/${root}`);
+}
 
 /**
  * Two test projects, deliberately separated:
@@ -34,7 +51,7 @@ const config: Config = {
     {
       displayName: 'pure',
       testEnvironment: 'node',
-      roots: ['<rootDir>/src/__tests__', '<rootDir>/src/ndef', '<rootDir>/src/protocols'],
+      roots: existingRoots('src/__tests__', 'src/ndef', 'src/protocols'),
       transform: {
         // Jest does not substitute <rootDir> inside transform options, so the
         // path is resolved here. Being a TypeScript config, it can just do that.
@@ -46,12 +63,7 @@ const config: Config = {
     {
       displayName: 'core',
       preset: 'jest-expo',
-      roots: [
-        '<rootDir>/src/core',
-        '<rootDir>/src/native',
-        '<rootDir>/src/react',
-        '<rootDir>/src/hce',
-      ],
+      roots: existingRoots('src/core', 'src/native', 'src/react', 'src/hce'),
       moduleNameMapper: RESOLVE_TS_FROM_JS_SPECIFIER,
       testMatch: TEST_MATCH,
     },
