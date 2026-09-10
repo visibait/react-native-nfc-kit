@@ -48,10 +48,11 @@ export default defineConfig([
     'coverage/**',
     'node_modules/**',
     '.tmp/**',
-    'example/node_modules/**',
-    'example/ios/**',
-    'example/android/**',
-    'example/.expo/**',
+    // The example is a separate app with its own dependency graph: it imports
+    // this package by name, which only resolves once its own install has run.
+    // Linting it from here would need that install, so it is checked by the
+    // example-types job instead, where the dependencies actually exist.
+    'example/**',
     'docs/.docusaurus/**',
     'docs/build/**',
   ]),
