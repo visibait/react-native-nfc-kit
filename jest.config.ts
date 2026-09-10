@@ -67,6 +67,18 @@ const config: Config = {
       moduleNameMapper: RESOLVE_TS_FROM_JS_SPECIFIER,
       testMatch: TEST_MATCH,
     },
+    {
+      // The config plugin is a separate TypeScript project that runs in Node
+      // during `expo prebuild`, never on a device, so it is tested the way it
+      // runs: plain Node, real `expo/config-plugins`, no React Native.
+      displayName: 'plugin',
+      testEnvironment: 'node',
+      roots: existingRoots('plugin/src'),
+      transform: {
+        '^.+\\.[jt]sx?$': ['babel-jest', { configFile: path.join(__dirname, 'babel.config.js') }],
+      },
+      testMatch: TEST_MATCH,
+    },
   ],
 
   // Milestones land one layer at a time, so a project can legitimately have no
@@ -75,9 +87,10 @@ const config: Config = {
 
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
-    '!src/**/__tests__/**',
-    '!src/**/*.test.{ts,tsx}',
-    '!src/**/index.ts',
+    'plugin/src/**/*.ts',
+    '!**/__tests__/**',
+    '!**/*.test.{ts,tsx}',
+    '!**/index.ts',
     '!src/**/*.web.ts',
   ],
   coverageReporters: ['text-summary', 'lcov'],
@@ -98,6 +111,16 @@ const config: Config = {
       statements: 100,
     },
     './src/protocols/': {
+      branches: 100,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
+    // The config plugin is held to the same bar for the same reason: it is plain
+    // TypeScript over plain objects, and every branch of it decides something
+    // that fails silently on a device -- an entitlement that is never written, a
+    // filter that never matches. There is no hardware to blame here.
+    './plugin/src/': {
       branches: 100,
       functions: 100,
       lines: 100,

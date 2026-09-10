@@ -1,0 +1,19 @@
+{
+  // Type-checks the plugin together with its tests. The build config excludes
+  // tests so they stay out of `plugin/build`, which would otherwise ship them to
+  // consumers; this one is a superset that emits nothing.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Wide enough to reach `src/native/contract.ts`, which one test imports to
+    // prove the plugin's duplicated technology names still match the runtime's.
+    // Nothing is emitted, so this only affects which files may be referenced.
+    "rootDir": "..",
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["node", "jest"]
+  },
+  "include": ["./src"],
+  "exclude": []
+}

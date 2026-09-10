@@ -15,7 +15,14 @@ const withNfcKit: ConfigPlugin<NfcKitPluginProps | undefined> = (config, props) 
   return next;
 };
 
-export type { NfcKitPluginProps } from './types';
+export type {
+  AndroidPluginProps,
+  BackgroundReadingProps,
+  IosPluginProps,
+  NdefIntentFilter,
+  NfcKitPluginProps,
+  TechName,
+} from './types';
 
 // `createRunOncePlugin` keys on name + version, so listing the plugin twice (for
 // example once directly and once through another plugin) applies it only once.

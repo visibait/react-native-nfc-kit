@@ -61,7 +61,7 @@
     "build": "tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && tsc -p tsconfig.mocks.json && node internal/module_scripts/finalize-build.js && npm run build:plugin",
     "build:plugin": "tsc --build plugin",
     "clean": "node internal/module_scripts/clean.js",
-    "typecheck": "tsc --noEmit -p tsconfig.test.json && tsc -p plugin --noEmit --composite false && tsc --noEmit -p tsconfig.mocks.json",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p plugin/tsconfig.test.json && tsc --noEmit -p tsconfig.mocks.json",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix --max-warnings=0",
     "format": "prettier --write .",
