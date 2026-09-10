@@ -25,6 +25,16 @@
         "default": "./build/cjs/ndef/index.js"
       }
     },
+    "./protocols": {
+      "import": {
+        "types": "./build/esm/protocols/index.d.ts",
+        "default": "./build/esm/protocols/index.js"
+      },
+      "require": {
+        "types": "./build/cjs/protocols/index.d.ts",
+        "default": "./build/cjs/protocols/index.js"
+      }
+    },
     "./package.json": "./package.json"
   },
   "sideEffects": false,
@@ -32,6 +42,7 @@
     "build",
     "plugin/build",
     "ndef",
+    "protocols",
     "mocks",
     "ios",
     "android",

@@ -1,0 +1,8 @@
+{
+  "//": "Subpath redirect for tooling that predates the exports map. Modern resolvers use the exports map in the root package.json and never read this file.",
+  "name": "react-native-nfc-kit/protocols",
+  "private": true,
+  "main": "../build/cjs/protocols/index.js",
+  "module": "../build/esm/protocols/index.js",
+  "types": "../build/cjs/protocols/index.d.ts"
+}

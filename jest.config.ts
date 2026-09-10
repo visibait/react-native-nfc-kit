@@ -88,12 +88,16 @@ const config: Config = {
       lines: 85,
       statements: 85,
     },
-    // The pure layers have no excuse: every branch of a byte codec is reachable
-    // from a test, so an uncovered branch is an untested branch.
-    //
-    // src/protocols gets the same threshold in M4, once it has files. Jest fails
-    // outright on a threshold path with no coverage data, so it is added then.
+    // The pure layers have no excuse: every branch of a byte codec or a protocol
+    // encoder is reachable from a test, so an uncovered branch is an untested
+    // branch. Both are held to 100%.
     './src/ndef/': {
+      branches: 100,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
+    './src/protocols/': {
       branches: 100,
       functions: 100,
       lines: 100,
