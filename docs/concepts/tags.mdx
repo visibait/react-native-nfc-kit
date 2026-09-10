@@ -1,0 +1,232 @@
+---
+title: 'Tags'
+description: 'Narrowing a tag to a technology, what each one gives you, the platform facets, and how long a tag stays valid.'
+---
+
+A `Tag` handed to you by a session is deliberately almost empty. It has an
+identifier, a list of technologies, a platform, and two platform facets. It has **no
+technology methods at all** until you narrow it.
+
+```ts
+await nfc.withTag({ tech: ['isoDep'] }, async (tag) => {
+  await tag.transceive(command); // ❌ does not compile: no such method here
+
+  if (tag.is('isoDep')) {
+    await tag.transceive(command); // ✅ exists, in the type system and at runtime
+  }
+});
+```
+
+That is not ceremony. It is what makes the difference between the platforms
+something your editor tells you about:
+
+<Warning>
+  On iOS `tag.is('mifareClassic')` is **always** `false`, because CoreNFC cannot reach Crypto-1 at
+  any OS version. Not `undefined`, not a method that throws when called — a guard that does not
+  match, so the branch you wrote for Android is simply not entered.
+</Warning>
+
+## What is on every tag
+
+<ResponseField name="id" type="Uint8Array | null">
+  The UID, or `null` when the platform does not expose one.
+</ResponseField>
+
+<ResponseField name="idHex" type="string | null">
+  The same as lowercase hex. Convenience for logging and comparison — and on the web, where Chrome
+  reports the serial with colons, this is normalised so it reads the same everywhere.
+</ResponseField>
+
+<ResponseField name="techs" type="TagTech[]">
+  The technologies this tag actually supports, here, on this platform. Worth logging in a bug
+  report.
+</ResponseField>
+
+<ResponseField name="platform" type="NfcPlatform">
+  `ios`, `android` or `web`.
+</ResponseField>
+
+<ResponseField name="released" type="boolean">
+  Whether the tag is gone: released, lost, or its session closed.
+</ResponseField>
+
+<ResponseField name="is(tech)" type="(tech: TagTech) => boolean">
+  The type guard. This is the only way to reach a technology's methods.
+</ResponseField>
+
+<ResponseField name="onLost(listener)" type="(listener: () => void) => Subscription">
+  Fires when the tag leaves the field. Android only — `capabilities.tagLost` says whether the
+  platform delivers this directly or it is polled for, which is a difference of latency. CoreNFC has
+  no removal callback at all, so on iOS a tag that has gone surfaces as the next operation failing
+  with `tagLost`.
+</ResponseField>
+
+## The technologies, and what each unlocks
+
+| `tag.is(…)`        | Gives you                                                | iOS | Android | Web |
+| ------------------ | -------------------------------------------------------- | :-: | :-----: | :-: |
+| `ndef`             | `readNdef`, `writeNdef`, `getNdefStatus`, `makeReadOnly` | ✅  |   ✅    | ✅  |
+| `ndefFormatable`   | `formatNdef`                                             | ✅  |   ✅    |  —  |
+| `isoDep`           | `transceive`, `transceiveApdu`, `maxTransceiveLength`    | ✅  |   ✅    |  —  |
+| `iso15693`         | `transceive`, `maxTransceiveLength`                      | ✅  |   ✅    |  —  |
+| `felica`           | `transceive`, `maxTransceiveLength`                      | ✅  |   ✅    |  —  |
+| `mifareUltralight` | `transceive`, `maxTransceiveLength`                      | ✅  |   ✅    |  —  |
+| `mifareClassic`    | `transceive`, `maxTransceiveLength`                      |  —  | chipset |  —  |
+| `nfcA`, `nfcB`     | `transceive`, `maxTransceiveLength`                      |  —  |   ✅    |  —  |
+| `nfcBarcode`       | `transceive`, `maxTransceiveLength`                      |  —  |   ✅    |  —  |
+
+Typed helpers over `transceive` — ISO 7816 with chaining, ISO 15693, FeliCa, NTAG
+password auth — live in [`/protocols`](/protocols) as plain TypeScript.
+
+### NDEF
+
+```ts
+if (tag.is('ndef')) {
+  const status = await tag.getNdefStatus();
+  // { writable, capacity, canMakeReadOnly, typeName }
+
+  const message = await tag.readNdef(); // decoded records
+  const bytes = await tag.readNdefBytes(); // the raw message, undecoded
+
+  await tag.writeNdef(records); // encodes for you
+  await tag.writeNdefBytes(bytes); // bytes you encoded yourself
+
+  await tag.makeReadOnly(); // irreversible
+}
+```
+
+Decoding happens in TypeScript, from the raw bytes, using the same codec on both
+platforms. That is deliberate: chunk reassembly, UTF-16 text records and
+malformed-input handling then behave identically everywhere, rather than inheriting
+whatever each platform's own NDEF parser happens to do.
+
+<Note>
+  `readNdefBytes` is the escape hatch for a tag this library's decoder rejects: you still get the
+  bytes and can decide what to do with them.
+</Note>
+
+### ISO-DEP, and the APDU shape
+
+```ts
+if (tag.is('isoDep')) {
+  const response = await tag.transceiveApdu(apdu);
+  // { data, sw1, sw2, status, statusHex, ok }
+
+  if (!response.ok) throw new Error(response.statusHex);
+  use(response.data); // the status word is already split off
+}
+```
+
+The shape is identical on both platforms. In the library this one replaces, the same
+call returned `[...bytes, sw1, sw2]` on iOS and the raw bytes on Android — with a
+`// TODO: make following data the same format as Android` in its own source
+admitting it. If you have platform branches around a transceive, delete them.
+
+### Raw exchange
+
+```ts
+if (tag.is('mifareUltralight')) {
+  const limit = await tag.maxTransceiveLength(); // chipset-dependent on Android
+  const response = await tag.transceive(new Uint8Array([0x30, 0x04]));
+}
+```
+
+A command longer than `maxTransceiveLength` rejects with `transceiveTooLong` rather
+than being truncated.
+
+## Platform facets
+
+`tag.android` and `tag.ios` are `undefined` on the other platform, so a facet you
+forgot to guard is a type error rather than a crash.
+
+<Tabs>
+  <Tab title="Android">
+    ```ts
+    tag.android?.techList; // raw Tag.getTechList() entries, for a bug report
+    tag.android?.maxTransceiveLength;
+    tag.android?.historicalBytes;
+    tag.android?.hiLayerResponse;
+
+    // Worth raising for long crypto sequences.
+    await tag.android?.setTechTimeout('isoDep', 3_000);
+    const current = await tag.android?.getTechTimeout('isoDep');
+    ```
+
+  </Tab>
+  <Tab title="iOS">
+    ```ts
+    tag.ios?.coreNfcType; // which CoreNFC case this arrived as, e.g. 'iso7816'
+    tag.ios?.historicalBytes;
+    tag.ios?.applicationData;
+    tag.ios?.initialSelectedAid; // the AID CoreNFC selected
+    tag.ios?.idm; // FeliCa manufacture id
+    tag.ios?.systemCode; // FeliCa system code
+    tag.ios?.icManufacturerCode;
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Declaring `D2760000850101`, the NDEF application AID, in your iOS entitlements changes how CoreNFC
+  presents cards that support it: a DESFire card then arrives as ISO 7816 rather than MIFARE, so
+  `tag.is('mifareUltralight')` and the MIFARE-specific commands stop matching.
+  `tag.ios?.coreNfcType` is where you see that happening.
+</Warning>
+
+## How long a tag is valid
+
+A tag is valid for exactly as long as the session that produced it, and using one
+afterwards rejects with `sessionClosed`.
+
+```ts
+await nfc.withTag({ tech: ['ndef'] }, async (tag) => {
+  return tag.readNdef(); // ✅ inside the callback
+});
+```
+
+There is no version of these APIs that hands you a native handle and trusts you to
+give it back. A handle that outlives its scope is a leak whose failure surfaces
+somewhere else entirely — which is precisely the class of bug this library exists to
+remove.
+
+### Tags that go away mid-operation
+
+```ts
+const subscription = tag.onLost(() => {
+  setStatus('Hold the tag still');
+});
+```
+
+On Android, `capabilities.tagLost` reports `native` when the platform delivers
+removal directly and `polled` when it is checked for on an interval. On iOS it is
+`none`: the departure surfaces as the next operation rejecting with `tagLost`,
+which is `recoverable`, so a retry is worth offering.
+
+## Checking a device rather than a tag
+
+```ts
+import { nfc, TAG_TECH_NAMES } from 'react-native-nfc-kit';
+
+// Does this device's controller implement Crypto-1 at all?
+if (nfc.supports('mifareClassic')) {
+  // …
+}
+
+const usable = TAG_TECH_NAMES.filter((tech) => nfc.supports(tech));
+```
+
+No heuristics are involved. The library this one replaces probed
+`/dev/bcm2079x-i2c` and `/dev/pn544`, scanned `/system/lib`, and carried a hardcoded
+special case for one Lenovo model — all of it guesswork about a question the
+platform answers directly.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="The NDEF codec" icon="code" href="/ndef">
+    Every record type, chunking, and tag-level framing.
+  </Card>
+  <Card title="Protocols" icon="microchip" href="/protocols">
+    ISO 7816, ISO 15693, FeliCa and NTAG over one primitive.
+  </Card>
+</Columns>

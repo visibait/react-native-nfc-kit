@@ -1,0 +1,247 @@
+---
+title: 'Quickstart'
+description: 'From an empty project to a working scan screen: read a tag, write a tag, and handle the four errors that are ordinary life.'
+---
+
+Fifteen minutes, one physical phone, and one cheap NTAG213 sticker. By the end you
+will have a screen that reads a tag, writes one, and handles cancellation without
+showing the user an error that is not one.
+
+<Note>
+  You need a **physical device**. Neither the iOS Simulator nor an Android emulator has an NFC
+  controller, so there is nothing for the library to talk to.
+</Note>
+
+## 1. Install and build
+
+<CodeGroup>
+
+```bash Expo
+npx expo install react-native-nfc-kit
+npx expo prebuild --clean
+npx expo run:ios      # or run:android
+```
+
+```bash Bare React Native
+npx install-expo-modules@latest
+npm install react-native-nfc-kit
+npx pod-install
+```
+
+</CodeGroup>
+
+With Expo, add the plugin before prebuilding:
+
+```json app.json
+{
+  "expo": {
+    "plugins": [
+      [
+        "react-native-nfc-kit",
+        { "readerUsageDescription": "Hold your card near the top of the phone" }
+      ]
+    ]
+  }
+}
+```
+
+Full detail, including the requirements and the Apple Developer portal step, is in
+[Installation](/installation).
+
+## 2. Check the device before offering the feature
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+
+const { supported, enabled } = await nfc.getAvailability();
+
+if (!supported) return; // No NFC hardware. Nothing helps.
+if (!enabled) await nfc.openSettings(); // Android only: NFC is switched off.
+```
+
+`enabled` is a real answer on both platforms here, not a hardcoded `true` on iOS.
+On Android the user can switch NFC off while your screen is open, which is why the
+React binding below subscribes rather than reading once.
+
+## 3. Read a tag
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+
+const message = await nfc.withTag(
+  { tech: ['ndef'], timeoutMs: 20_000, ios: { alertMessage: 'Hold your tag near the phone' } },
+  async (tag) => {
+    if (!tag.is('ndef')) throw new Error('Not an NDEF tag');
+    return tag.readNdef();
+  },
+);
+```
+
+Three things are happening that are worth naming, because they are the whole design:
+
+<AccordionGroup>
+  <Accordion title="The tech list is what you are willing to accept" icon="filter">
+    The session only surfaces tags carrying one of the technologies you asked for. On iOS it also
+    decides which reader-session polling options are used.
+  </Accordion>
+  <Accordion title="Narrowing is what makes readNdef exist" icon="check">
+    Before you narrow, a `Tag` has an id, a technology list and platform facets — and no technology
+    methods at all. `tag.readNdef()` on an un-narrowed tag is a compile error, not a runtime
+    surprise.
+  </Accordion>
+  <Accordion title="The session is already closed by the time you read this line" icon="lock">
+    `withTag` closes on every path out: returning, throwing, an `AbortSignal` firing, the
+    `timeoutMs` elapsing, or the platform ending the session underneath. There is no `finally` for
+    you to forget.
+  </Accordion>
+</AccordionGroup>
+
+## 4. Read the records you got
+
+`readNdef` gives you decoded records, not bytes. Pair each decoder with its guard:
+
+```ts
+import {
+  isUriRecord,
+  decodeUriRecord,
+  isTextRecord,
+  decodeTextRecord,
+} from 'react-native-nfc-kit/ndef';
+
+for (const record of message) {
+  if (isUriRecord(record)) {
+    console.log('link:', decodeUriRecord(record).uri);
+  } else if (isTextRecord(record)) {
+    const { text, languageCode } = decodeTextRecord(record);
+    console.log(`text (${languageCode}):`, text);
+  }
+}
+```
+
+Calling a decoder on the wrong record type throws `invalidArgument` rather than
+returning garbage, so the guard is not optional politeness — it is how you avoid
+the throw. [The NDEF codec](/ndef) covers every record type.
+
+## 5. Write a tag
+
+Check before you write. A tag that runs out of room part-way through a write is
+left in a state nobody can read:
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+import { createUriRecord, encodedMessageLength } from 'react-native-nfc-kit/ndef';
+
+const records = [createUriRecord('https://example.com/ticket/42')];
+
+await nfc.withTag({ tech: ['ndef', 'ndefFormatable'] }, async (tag) => {
+  // A factory-fresh tag is often formatable rather than NDEF. Format it.
+  if (tag.is('ndefFormatable')) return tag.formatNdef(records);
+
+  if (!tag.is('ndef')) throw new Error('Not an NDEF tag');
+
+  const status = await tag.getNdefStatus();
+  if (!status.writable) throw new Error('This tag is locked');
+  if (status.capacity < encodedMessageLength(records)) {
+    throw new Error('Message too large for this tag');
+  }
+
+  await tag.writeNdef(records);
+});
+```
+
+<Tip>
+  Asking for both `ndef` and `ndefFormatable` and narrowing on each is the pattern that makes "it
+  works on a used tag and not on a new one" go away.
+</Tip>
+
+## 6. Handle the four errors that are ordinary life
+
+Every rejection is an `NfcError` with a stable `code`. Four of them are not bugs
+and not tag problems — they are what happens on an ordinary Tuesday:
+
+```ts
+import { NfcError, nfc } from 'react-native-nfc-kit';
+
+try {
+  await nfc.withTag({ tech: ['ndef'] }, read);
+} catch (error) {
+  if (NfcError.is(error, 'userCancelled')) return; // Not a failure. Show nothing.
+  if (NfcError.is(error, 'tagLost')) return retry(); // Hold it still, try again.
+  if (NfcError.is(error, 'sessionTimeout')) return offerAnotherScan();
+  if (NfcError.is(error, 'nfcDisabled')) return nfc.openSettings();
+  throw error;
+}
+```
+
+<Warning>
+  Use `NfcError.is()` rather than `instanceof`. It brands on the error's `name`, so it keeps working
+  when two copies of the package end up in one bundle — which happens, and which breaks `instanceof`
+  in a way that is very hard to see.
+</Warning>
+
+Every code, its cause and its remedy: [the error reference](/errors).
+
+## 7. Put it on screen
+
+The React binding handles three things a hand-written version usually does not:
+unmounting mid-scan cancels the session, a second `scan()` joins the first rather
+than opening a second session, and NFC being switched off is reflected without a
+refresh.
+
+```tsx ScanScreen.tsx
+import { Button, Text, View } from 'react-native';
+import { nfc } from 'react-native-nfc-kit';
+import { decodeUriRecord, isUriRecord } from 'react-native-nfc-kit/ndef';
+import { useNfcAvailability, useNfcScan } from 'react-native-nfc-kit/react';
+
+export default function ScanScreen() {
+  const { ready, supported, loading } = useNfcAvailability();
+
+  const { scan, cancel, scanning, data, error } = useNfcScan(
+    async (tag) => {
+      if (!tag.is('ndef')) throw new Error('Not an NDEF tag');
+      const message = await tag.readNdef();
+      const uri = message.find(isUriRecord);
+      return uri ? decodeUriRecord(uri).uri : '(no link on this tag)';
+    },
+    { tech: ['ndef'], timeoutMs: 20_000, ios: { alertMessage: 'Hold your tag near the phone' } },
+  );
+
+  if (loading) return <Text>Checking this device</Text>;
+  if (!supported) return <Text>This device has no NFC.</Text>;
+  if (!ready) return <Button title="Turn NFC on" onPress={() => nfc.openSettings()} />;
+
+  return (
+    <View>
+      <Button title={scanning ? 'Cancel' : 'Scan a tag'} onPress={scanning ? cancel : scan} />
+      {data ? <Text>{data}</Text> : null}
+      {error ? <Text>{error.message}</Text> : null}
+    </View>
+  );
+}
+```
+
+Cancelling settles as idle rather than as an error, because the user asked for it
+and there is nothing to report to them.
+
+<Note>
+  On Android there is no system sheet, so nothing appears while `scanning` is true. Show your own
+  "hold your tag near the phone" state — the button label above is the minimum version of that.
+</Note>
+
+## Where to go next
+
+<Columns cols={2}>
+  <Card title="Sessions" icon="play" href="/concepts/sessions">
+    `withTag` is one of three ways to get a tag. The other two are for kiosks and for your own UI.
+  </Card>
+  <Card title="Tags" icon="tag" href="/concepts/tags">
+    Every technology, what narrowing gives you, and the platform facets.
+  </Card>
+  <Card title="Smartcards" icon="credit-card" href="/setup/iso7816">
+    DESFire and JavaCard, plus the iOS AID declaration without which the tag never arrives.
+  </Card>
+  <Card title="React hooks" icon="code" href="/react">
+    `useNfcAvailability`, `useNfcScan`, `useNfcTagStream`.
+  </Card>
+</Columns>

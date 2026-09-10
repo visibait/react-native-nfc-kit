@@ -53,7 +53,7 @@ const SLOTS: readonly Slot[] = [
   'apduService',
 ];
 
-/** One `<!-- generated: recipe.slot -->` block found in a documentation file. */
+/** One JSX-comment-delimited `generated: recipe.slot` block found in a page. */
 interface Block {
   readonly recipe: string;
   readonly slot: Slot;
@@ -63,8 +63,12 @@ interface Block {
 }
 
 // Blank lines around the fence are tolerated, because Prettier puts them there.
+//
+// The markers are JSX comments rather than HTML ones. The pages are MDX, which
+// has no `<!-- -->` syntax at all: an HTML comment there is not ignored, it is a
+// parse error, and the whole page fails to build.
 const BLOCK =
-  /<!-- generated: ([a-z0-9-]+)\.([a-zA-Z]+) -->\s*\n```xml\n([\s\S]*?)```\s*\n<!-- \/generated -->/g;
+  /\{\/\* generated: ([a-z0-9-]+)\.([a-zA-Z]+) \*\/\}\s*\n```xml\n([\s\S]*?)```\s*\n\{\/\* \/generated \*\/\}/g;
 
 function findBlocks(contents: string): Block[] {
   const blocks: Block[] = [];
@@ -94,11 +98,11 @@ function findBlocks(contents: string): Block[] {
 
 function replaceBlock(contents: string, block: Block, body: string): string {
   const replacement =
-    `<!-- generated: ${block.recipe}.${block.slot} -->\n\n` +
+    `{/* generated: ${block.recipe}.${block.slot} */}\n\n` +
     '```xml\n' +
     `${body}\n` +
     '```\n\n' +
-    '<!-- /generated -->';
+    '{/* /generated */}';
   return contents.slice(0, block.start) + replacement + contents.slice(block.end);
 }
 
@@ -116,7 +120,7 @@ async function renderRecipe(recipe: string): Promise<RenderedSetup> {
 }
 
 const files = fs.existsSync(DOCS_DIR)
-  ? fs.readdirSync(DOCS_DIR).filter((name) => name.endsWith('.md'))
+  ? fs.readdirSync(DOCS_DIR).filter((name) => /\.mdx?$/.test(name))
   : [];
 
 const allBlocks = files.flatMap((file) =>

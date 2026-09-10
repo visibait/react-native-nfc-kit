@@ -9,8 +9,9 @@
 [![types](https://img.shields.io/badge/types-included-0F766E)](https://www.npmjs.com/package/react-native-nfc-kit)
 
 [Documentation](https://react-native-nfc-kit.mintlify.site/) ·
-[Setup guides](docs/setup/overview.md) ·
-[Migrating from nfc-manager](docs/migrating-from-nfc-manager.md)
+[Quickstart](https://react-native-nfc-kit.mintlify.site/quickstart) ·
+[Setup guides](https://react-native-nfc-kit.mintlify.site/setup/overview) ·
+[Migrating from nfc-manager](https://react-native-nfc-kit.mintlify.site/migrating-from-nfc-manager)
 
 </div>
 
@@ -124,7 +125,7 @@ runtime, and the types tell you before that.
 
 New Architecture only. Bare React Native works too — Expo Modules need the `expo`
 package, not the whole SDK. See
-[docs/setup/bare-react-native.md](docs/setup/bare-react-native.md).
+[the bare React Native guide](https://react-native-nfc-kit.mintlify.site/setup/bare-react-native).
 
 ## Setup, per use case
 
@@ -133,25 +134,25 @@ gives both routes: the Expo plugin option, and the exact plist and manifest XML 
 bare project. The bare snippets are generated from the plugin itself, so the two
 cannot drift.
 
-| You want to                         | Page                                                   |
-| ----------------------------------- | ------------------------------------------------------ |
-| Read or write NDEF tags             | [ndef](docs/setup/ndef.md)                             |
-| Send APDUs to a smartcard           | [iso7816](docs/setup/iso7816.md)                       |
-| Read FeliCa cards                   | [felica](docs/setup/felica.md)                         |
-| Read MIFARE Classic                 | [mifare-classic](docs/setup/mifare-classic.md)         |
-| Handle a tag that launches your app | [background-reading](docs/setup/background-reading.md) |
-| Emulate a card for a terminal       | [hce](docs/setup/hce.md)                               |
-| Read an Apple Wallet pass           | [vas](docs/setup/vas.md)                               |
-| Read a tag from a browser           | [web](docs/setup/web.md)                               |
-| Install without the Expo SDK        | [bare-react-native](docs/setup/bare-react-native.md)   |
+| You want to                         | Page                                                                                    |
+| ----------------------------------- | --------------------------------------------------------------------------------------- |
+| Read or write NDEF tags             | [NDEF](https://react-native-nfc-kit.mintlify.site/setup/ndef)                           |
+| Send APDUs to a smartcard           | [ISO 7816](https://react-native-nfc-kit.mintlify.site/setup/iso7816)                    |
+| Read FeliCa cards                   | [FeliCa](https://react-native-nfc-kit.mintlify.site/setup/felica)                       |
+| Read MIFARE Classic                 | [MIFARE Classic](https://react-native-nfc-kit.mintlify.site/setup/mifare-classic)       |
+| Handle a tag that launches your app | [Background tags](https://react-native-nfc-kit.mintlify.site/setup/background-reading)  |
+| Emulate a card for a terminal       | [Card emulation](https://react-native-nfc-kit.mintlify.site/setup/hce)                  |
+| Read an Apple Wallet pass           | [Apple Wallet](https://react-native-nfc-kit.mintlify.site/setup/vas)                    |
+| Read a tag from a browser           | [Web NFC](https://react-native-nfc-kit.mintlify.site/setup/web)                         |
+| Install without the Expo SDK        | [Bare React Native](https://react-native-nfc-kit.mintlify.site/setup/bare-react-native) |
 
-Also worth knowing about: [the error reference](docs/errors.md), with every
+Also worth knowing about: [the error reference](https://react-native-nfc-kit.mintlify.site/errors), with every
 `NfcErrorCode`, what causes it and what to do about it.
 
 ## Coming from react-native-nfc-manager
 
 Both libraries can be installed side by side, so you can migrate one screen at a
-time. [The migration guide](docs/migrating-from-nfc-manager.md) has an API
+time. [The migration guide](https://react-native-nfc-kit.mintlify.site/migrating-from-nfc-manager) has an API
 equivalence table, the differences that actually change calling code, and a worked
 before-and-after.
 
@@ -177,7 +178,7 @@ Nothing here is claimed to work because it looks right.
   against the barrel that defines it.
 
 What none of that covers is behaviour against a real tag — no emulator can present
-one. [docs/device-matrix.md](docs/device-matrix.md) is the reproducible checklist for
+one. [The device matrix](https://react-native-nfc-kit.mintlify.site/device-matrix) is the reproducible checklist for
 that, and it is the right place to look if you hit something on a device or chipset
 combination you would like covered.
 

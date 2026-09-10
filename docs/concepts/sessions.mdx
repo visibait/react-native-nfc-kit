@@ -1,0 +1,288 @@
+---
+title: 'Sessions'
+description: 'The three ways to get a tag, which to reach for, and why a session that closes itself is the whole point.'
+---
+
+Only one NFC session can be open on a device at a time. That is a platform rule, not
+a library one: on Android reader mode is exclusive, and on iOS a second
+`NFCTagReaderSession` queues behind the first. So the interesting question is not how
+to open one — it is how to be certain it closed.
+
+A leaked session keeps the iOS scanning sheet up and holds Android's NFC controller.
+Neither symptom appears where the leak is. Both appear two screens later, as NFC
+having "randomly stopped working".
+
+## Three ways in
+
+<CardGroup cols={3}>
+  <Card title="withTag" icon="hand-pointer">
+    One tag, scoped. **Reach for this.**
+  </Card>
+  <Card title="openSession" icon="list-check">
+    Several tags, your own UI.
+  </Card>
+  <Card title="onTag" icon="repeat">
+    Continuous. Kiosks and doors.
+  </Card>
+</CardGroup>
+
+### withTag — one tag, and the session closes itself
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+
+const message = await nfc.withTag({ tech: ['ndef'], timeoutMs: 20_000 }, async (tag) => {
+  if (!tag.is('ndef')) throw new Error('Not an NDEF tag');
+  return tag.readNdef();
+});
+```
+
+The session closes on **every** path out:
+
+| What happens                                | Session closed? |
+| ------------------------------------------- | :-------------: |
+| The callback returns                        |       ✅        |
+| The callback throws                         |       ✅        |
+| Your `AbortSignal` fires                    |       ✅        |
+| `timeoutMs` elapses                         |       ✅        |
+| The user dismisses the iOS sheet            |       ✅        |
+| iOS ends the session at its 60-second limit |       ✅        |
+| The process is torn down mid-scan           |       ✅        |
+
+<Warning>
+**The tag is only valid inside the callback.** Keeping a reference and using it
+afterwards rejects with `sessionClosed`, which is deliberate: the alternative is a
+native handle that outlives its session and fails somewhere unrelated.
+
+```ts
+let escaped;
+await nfc.withTag({ tech: ['ndef'] }, async (tag) => {
+  escaped = tag; // Don't.
+});
+await escaped.readNdef(); // rejects: sessionClosed
+```
+
+</Warning>
+
+### openSession — several tags, with your own UI between them
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+
+await using session = await nfc.openSession({ tech: ['ndef'] });
+
+const first = await session.nextTag();
+await session.setAlert('Now the second tag');
+const second = await session.nextTag({ timeoutMs: 15_000 });
+```
+
+`await using` closes the session when the block ends, however it ends. Without
+explicit resource management in your toolchain, a `finally` does the same job:
+
+```ts
+const session = await nfc.openSession({ tech: ['ndef'] });
+try {
+  const tag = await session.nextTag();
+  // …
+} finally {
+  await session.close();
+}
+```
+
+| Member                    | What it does                                                 |
+| ------------------------- | ------------------------------------------------------------ |
+| `nextTag(options?)`       | Waits for the next tag. Rejects if the session ends first    |
+| `setAlert(message)`       | iOS: updates the text in the system sheet. A no-op elsewhere |
+| `close()`                 | Closes it. Safe to call more than once                       |
+| `onInvalidated(listener)` | Fires when the platform ends the session on its own          |
+| `closed`                  | Whether it is already closed                                 |
+| `id`                      | An identifier, for logging                                   |
+
+<Tip>
+  Prefer `withTag`. Reach for `openSession` only when you genuinely need to keep the iOS sheet up
+  across several taps — a two-tag pairing flow, or a "now tap the second card" step. Everything else
+  is `withTag` in a loop, which cannot leak.
+</Tip>
+
+### onTag — continuous, for a kiosk or a door
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+
+const subscription = nfc.onTag(
+  {
+    tech: ['isoDep'],
+    android: { presenceCheckDelayMs: 500 },
+    onError: (error) => report(error),
+  },
+  async (tag) => {
+    if (tag.is('isoDep')) await validateTicket(tag);
+  },
+);
+
+// When the screen goes away:
+subscription.remove();
+```
+
+`onTag` returns a `Subscription`, not a promise, so a failure has nothing to reject
+into — that is what `onError` is for. Leaving it out makes a stream that dies
+silently.
+
+<Warning>
+  **This is really an Android shape.** Reader mode stays up indefinitely there. iOS caps a session
+  at 60 seconds with a system sheet on screen for all of it, so the stream ends with
+  `sessionTimeout`. Restarting is left to you, because on iOS restarting means putting the sheet
+  back up, which is a product decision rather than a technical one.
+</Warning>
+
+In a component, use [`useNfcTagStream`](/react#usenfctagstream): it ties the
+stream's lifetime to the mount and to screen focus, which is the part that is easy
+to get wrong.
+
+## Options, in full
+
+Every entry point takes the same `ScanOptions`.
+
+<ResponseField name="tech" type="TagTech[]" required>
+  Which technologies you are willing to accept. A tag carrying none of them is never surfaced. On
+  iOS this also decides the reader session's polling options.
+</ResponseField>
+
+<ResponseField name="timeoutMs" type="number">
+  Your own deadline. Rejects with `timeout` — which is deliberately *not* `sessionTimeout`, iOS's
+  own 60-second cap that no library can extend.
+</ResponseField>
+
+<ResponseField name="signal" type="AbortSignal">
+  Rejects with `aborted` when the signal fires. Aborting before the call reaches the radio does not
+  touch the radio at all.
+</ResponseField>
+
+<ResponseField name="ios" type="IosScanOptions">
+  <Expandable title="properties">
+    <ResponseField name="alertMessage" type="string">
+      The text in the system scanning sheet. `session.setAlert()` changes it mid-session.
+    </ResponseField>
+    <ResponseField name="invalidateAfterFirstRead" type="boolean">
+      Whether CoreNFC should end the session as soon as one tag has been read.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="android" type="AndroidScanOptions">
+  <Expandable title="properties">
+    <ResponseField name="presenceCheckDelayMs" type="number">
+      How often Android checks the tag is still there. **The default is 125 ms, which is shorter
+      than DESFire authentication takes** — raise it to 500 for anything doing crypto, or the OS
+      declares the tag lost part-way through an exchange that was going fine.
+    </ResponseField>
+    <ResponseField name="skipNdefCheck" type="boolean">
+      Skips the platform's NDEF probe on discovery. Faster, and correct when you are not reading
+      NDEF.
+    </ResponseField>
+    <ResponseField name="noPlatformSounds" type="boolean">
+      Suppresses the system discovery sound.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="config" type="SessionConfig">
+  <Expandable title="properties">
+    <ResponseField name="polling" type="('iso14443' | 'iso15693' | 'iso18092' | 'pace')[]">
+      Overrides the polling technologies inferred from `tech`.
+    </ResponseField>
+    <ResponseField name="iso7816SelectIdentifiers" type="string[]">
+      AIDs for this session. Note that iOS also requires them in Info.plist — see [ISO 7816
+      setup](/setup/iso7816).
+    </ResponseField>
+    <ResponseField name="feliCaSystemCodes" type="string[]">
+      FeliCa system codes for this session. Same caveat — see [FeliCa setup](/setup/felica).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Cancelling and timing out
+
+Two deadlines exist and they are not the same thing, which is why they have
+different codes:
+
+| Code             | Whose deadline                       | What to do                             |
+| ---------------- | ------------------------------------ | -------------------------------------- |
+| `timeout`        | Yours, the `timeoutMs` you passed    | Raise it, or accept it                 |
+| `sessionTimeout` | iOS's, 60 seconds, not extendable    | Offer another scan, or split the work  |
+| `aborted`        | Yours, the `AbortSignal` you passed  | Nothing. You asked for it              |
+| `userCancelled`  | The user's, dismissing the iOS sheet | Nothing. Not a failure — show no error |
+
+```ts
+const controller = new AbortController();
+
+const promise = nfc.withTag({ tech: ['ndef'], signal: controller.signal }, read);
+
+// From a Cancel button:
+controller.abort();
+```
+
+<Note>
+  `aborted` is not `userCancelled`. The first is your signal; the second is the user dismissing the
+  sheet. Collapsing the two — which the library this one replaces did — makes it impossible for an
+  app to decide whether to show a message.
+</Note>
+
+## Availability, before you offer the feature
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+
+const { supported, enabled, capabilities } = await nfc.getAvailability();
+
+const subscription = nfc.onAvailabilityChange(({ enabled }) => {
+  // Android: the user can switch NFC off while your screen is open.
+  setNfcOn(enabled);
+});
+```
+
+| Call                           | Answers                                                     |
+| ------------------------------ | ----------------------------------------------------------- |
+| `nfc.isSupported()`            | Whether this device has usable NFC hardware                 |
+| `nfc.isEnabled()`              | Whether it is switched on. A real answer on iOS, not `true` |
+| `nfc.getAvailability()`        | Both, plus per-device capabilities, in one call             |
+| `nfc.capabilities`             | The last known capabilities, synchronously, or `null`       |
+| `nfc.supports(tech)`           | Whether this device's controller implements a technology    |
+| `nfc.openSettings()`           | Android: opens the NFC settings screen                      |
+| `nfc.onAvailabilityChange(fn)` | Subscribes to changes                                       |
+
+`nfc.capabilities` also reports what the platform can do beyond tags: `hce`,
+`observeMode`, `pollingFrames`, `vas`, `backgroundReading`, and `tagLost`, which
+says whether tag removal is delivered by the platform or polled for.
+
+## Tags that arrive without a session
+
+A tag tapped while your app is closed or backgrounded does not come through reader
+mode at all — it arrives as an Android intent, and it needs manifest configuration
+you have to opt into.
+
+```ts
+// The app was not running and a tap started it. Safe to call on every launch:
+// it answers null when a tag was not the reason.
+const ticket = await nfc.withLaunchTag(async (tag) => (tag.is('ndef') ? tag.readNdef() : null));
+
+// The app was in the background, or on another screen.
+const subscription = nfc.onBackgroundTag(async (tag) => {
+  if (tag.is('ndef')) await handle(await tag.readNdef());
+});
+```
+
+Both hand the tag to a callback and release it afterwards, the way `withTag` does.
+The full picture, including the Android 17 permission that decides whether the tag
+arrives at all, is in [Background tag reading](/setup/background-reading).
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Tags" icon="tag" href="/concepts/tags">
+    What you can do with the thing a session hands you.
+  </Card>
+  <Card title="Error reference" icon="triangle-exclamation" href="/errors">
+    Every code a session can reject with.
+  </Card>
+</Columns>

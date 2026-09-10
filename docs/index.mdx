@@ -1,0 +1,120 @@
+---
+title: 'react-native-nfc-kit'
+sidebarTitle: 'Introduction'
+description: 'Modern, typed NFC for React Native and Expo. New Architecture native, Swift and Kotlin, sessions that cannot leak.'
+mode: 'wide'
+---
+
+NFC for React Native and Expo, built on the Expo Modules API. New Architecture
+only, TypeScript throughout, and the asymmetry between iOS and Android visible in
+the type system rather than discovered in production.
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+
+const message = await nfc.withTag({ tech: ['ndef'], timeoutMs: 20_000 }, async (tag) => {
+  if (!tag.is('ndef')) throw new Error('Not an NDEF tag');
+  return tag.readNdef();
+});
+```
+
+<CardGroup cols={2}>
+  <Card title="Install it" icon="download" href="/installation">
+    Expo or bare React Native, the requirements, and why you need a development build.
+  </Card>
+  <Card title="Read your first tag" icon="bolt" href="/quickstart">
+    From an empty project to a working scan screen, step by step.
+  </Card>
+  <Card title="Set it up for your use case" icon="wrench" href="/setup/overview">
+    One page per case, with both the Expo plugin option and the exact plist and manifest XML.
+  </Card>
+  <Card
+    title="Coming from nfc-manager"
+    icon="arrow-right-arrow-left"
+    href="/migrating-from-nfc-manager"
+  >
+    An API equivalence table, and the six differences that change your code.
+  </Card>
+</CardGroup>
+
+## Two things to know before reading further
+
+<AccordionGroup>
+  <Accordion title="A tag carries no technology methods until you narrow it" icon="filter" defaultOpen>
+    `tag.is('ndef')` is what makes `readNdef` exist, in the type system and at
+    runtime. That is how the platform difference stays visible: on iOS
+    `tag.is('mifareClassic')` is always `false`, because CoreNFC cannot reach
+    Crypto-1 at any OS version.
+
+    ```ts
+    if (tag.is('isoDep')) {
+      const response = await tag.transceive(command); // ✅ exists here
+    }
+    await tag.transceive(command); // ❌ does not compile
+    ```
+
+  </Accordion>
+  <Accordion title="withTag always closes the session" icon="lock" defaultOpen>
+    On success, on a throw, on an abort, on a timeout, and when the platform ends
+    the session underneath.
+
+    A leaked session keeps the iOS sheet up and holds Android's NFC controller
+    exclusively, which is the failure that surfaces two screens later as something
+    unrelated.
+
+  </Accordion>
+</AccordionGroup>
+
+## What is here
+
+| Entry point                      | What it is                                                       |
+| -------------------------------- | ---------------------------------------------------------------- |
+| `react-native-nfc-kit`           | Reading and writing tags: sessions, tags, errors                 |
+| `react-native-nfc-kit/ndef`      | The NDEF codec. No native dependency, so it runs in Node too     |
+| `react-native-nfc-kit/protocols` | ISO 7816, ISO 15693, FeliCa, NTAG/Ultralight, over one primitive |
+| `react-native-nfc-kit/hce`       | Card emulation: answer a terminal as though you were a card      |
+| `react-native-nfc-kit/vas`       | Read an Apple Wallet pass                                        |
+| `react-native-nfc-kit/react`     | Hooks, on a subpath so the core never imports React              |
+
+## What works where
+
+The interesting column is the one that says no. None of this is hidden behind a
+method that exists and then throws — `nfc.capabilities` and `tag.is()` tell you at
+runtime, and the types tell you before that.
+
+| Feature                      |          iOS          | Android | Web (Chrome) |
+| ---------------------------- | :-------------------: | :-----: | :----------: |
+| Read and write NDEF          |          ✅           |   ✅    |      ✅      |
+| ISO 7816 / ISO-DEP APDUs     |          ✅           |   ✅    |      —       |
+| ISO 15693, FeliCa            |          ✅           |   ✅    |      —       |
+| NTAG / MIFARE Ultralight     |          ✅           |   ✅    |      —       |
+| MIFARE Classic               |           —           | chipset |      —       |
+| Raw `NfcA` / `NfcB`          |           —           |   ✅    |      —       |
+| Tag-removal callback         |           —           |   ✅    |      —       |
+| Background / launch tags     |    system-handled     |   ✅    |      —       |
+| Card emulation (HCE)         | entitlement, EEA only |   ✅    |      —       |
+| Observe mode, polling frames |           —           | API 35+ |      —       |
+| Apple Wallet passes (VAS)    |      entitlement      |    —    |      —       |
+
+<Warning>
+  **NFC needs a development build.** It is native code, so Expo Go cannot load it. `npx expo
+  run:ios`, `npx expo run:android`, `eas build` and `eas build --local` all produce a build that
+  works. See [Installation](/installation).
+</Warning>
+
+## Where to go next
+
+<Columns cols={2}>
+  <Card title="Sessions" icon="play" href="/concepts/sessions">
+    The three ways to get a tag, and which to reach for.
+  </Card>
+  <Card title="Tags" icon="tag" href="/concepts/tags">
+    Narrowing, platform facets, and what a tag can do.
+  </Card>
+  <Card title="The NDEF codec" icon="code" href="/ndef">
+    Building and parsing messages, with or without a device.
+  </Card>
+  <Card title="Error reference" icon="triangle-exclamation" href="/errors">
+    Every `NfcErrorCode`, what causes it, what to do about it.
+  </Card>
+</Columns>

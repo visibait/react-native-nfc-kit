@@ -1,6 +1,7 @@
 ---
-title: Card emulation (HCE)
-description: Answering a terminal as though the phone were a card, and holding it silent until the user confirms.
+title: 'Card emulation (HCE)'
+sidebarTitle: 'Card emulation'
+description: 'Answering a terminal as though the phone were a card, and holding it silent until the user confirms.'
 ---
 
 Making the phone answer a terminal as though it were a card: a door reader, a
@@ -19,27 +20,37 @@ await session.stop();
 
 ## Two things to know before you build on this
 
-**Android only.** iOS has had `CardSession` since 17.4, but it needs the
-`com.apple.developer.nfc.hce` entitlement, which Apple grants case by case after a
-request describing your use, and it works only in the EEA. That is not a
-capability a library can offer, so `hce.isSupported()` answers `false` on iOS and
-every other call rejects with `unsupportedPlatform`. Check `isSupported()` rather
-than the platform.
+<AccordionGroup>
+  <Accordion title="Android only" icon="android" defaultOpen>
+    iOS has had `CardSession` since 17.4, but it needs the
+    `com.apple.developer.nfc.hce` entitlement, which Apple grants case by case after
+    a request describing your use, and it works only in the EEA. That is not a
+    capability a library can offer, so `hce.isSupported()` answers `false` on iOS and
+    every other call rejects with `unsupportedPlatform`.
 
-**Your app has to be running.** Android starts its HCE service when a terminal
-taps, with no reference to any Activity and no guarantee that a JavaScript runtime
-exists. When yours does not, the terminal is answered `6F00` — a definite refusal,
-so it reports "card not supported" instead of waiting for its own timeout and
-reporting a hardware fault. If you need a card that answers with the app killed,
-that is a native implementation, not this.
+    **Check `isSupported()` rather than the platform.**
 
-There is also a deadline per command, one second by default. Native enforces it,
-because JavaScript is exactly what might be too busy to notice, and answers on
-your behalf when it elapses.
+  </Accordion>
+  <Accordion title="Your app has to be running" icon="play" defaultOpen>
+    Android starts its HCE service when a terminal taps, with no reference to any
+    Activity and no guarantee that a JavaScript runtime exists. When yours does not,
+    the terminal is answered `6F00` — a definite refusal, so it reports "card not
+    supported" instead of waiting for its own timeout and reporting a hardware
+    fault.
+
+    If you need a card that answers with the app killed, that is a native
+    implementation, not this.
+
+    There is also a deadline per command, one second by default. Native enforces it,
+    because JavaScript is exactly what might be too busy to notice, and answers on
+    your behalf when it elapses.
+
+  </Accordion>
+</AccordionGroup>
 
 ## Expo
 
-```json
+```json app.json
 {
   "expo": {
     "plugins": [
@@ -59,9 +70,10 @@ your behalf when it elapses.
 }
 ```
 
-Leave `hce` out and no service is declared at all, which is what an app that only
-reads tags wants — a declared service keeps the app registered as a card emulator,
-so terminals keep selecting it.
+<Note>
+  Leave `hce` out and no service is declared at all, which is what an app that only reads tags wants
+  — a declared service keeps the app registered as a card emulator, so terminals keep selecting it.
+</Note>
 
 ### The AIDs
 
@@ -92,18 +104,24 @@ gives the terminal no answer at all and the user has no way to tell why.
 
 ## What is not supported, and why
 
-**The `payment` category.** An HCE service in that category needs a 260×96 banner
-drawable and the user actively choosing your app as their default wallet — neither
-of which a config plugin can arrange, and the second of which is a flow your app
-has to run deliberately. Everything here uses the `other` category, which is the
-right one for access control and ticketing.
+<AccordionGroup>
+  <Accordion title="The payment category" icon="credit-card">
+    An HCE service in that category needs a 260×96 banner drawable and the user
+    actively choosing your app as their default wallet — neither of which a config
+    plugin can arrange, and the second of which is a flow your app has to run
+    deliberately. Everything here uses the `other` category, which is the right one
+    for access control and ticketing.
+  </Accordion>
+  <Accordion title="setDiscoveryTechnology (Android 15, API 35)" icon="sliders">
+    It restricts what the phone polls for and listens to, but the only way to use it
+    for reading is to give up reader mode and take tags through intents instead —
+    which is the acquisition model this library deliberately does not use, because it
+    brings back the `onPause` churn and the two-different-event-sequences problem.
 
-**`setDiscoveryTechnology`** (Android 15, API 35). It restricts what the phone
-polls for and listens to, but the only way to use it for reading is to give up
-reader mode and take tags through intents instead — which is the acquisition model
-this library deliberately does not use, because it brings back the `onPause`
-churn and the two-different-event-sequences problem. Restricting _emulation_ is
-what `preferSelf` and observe mode below already do.
+    Restricting *emulation* is what `preferSelf` and observe mode below already do.
+
+  </Accordion>
+</AccordionGroup>
 
 ## Not answering straight away
 
@@ -117,6 +135,8 @@ says otherwise. Combined with the polling loop frames, an app can tell a reader 
 there before any of its own code has been selected:
 
 ```ts
+import { hce } from 'react-native-nfc-kit/hce';
+
 const session = await hce.start({
   onCommand: (apdu) => card.handle(apdu),
   observeMode: true,
@@ -136,12 +156,14 @@ await session.setObserveMode(false);
 
 Three things worth knowing:
 
-- **It is not universally available.** Android 15 and later, _and_ a hardware
-  capability on top of that: plenty of API 35 devices answer `false`. Check
-  `nfc.capabilities.observeMode`, and read `session.observeMode` rather than
-  assuming your request took effect — believing the card is silent while it is
-  answering is the worst outcome available here, because the user is never asked
-  and the transaction happens anyway.
+<Warning>
+  **It is not universally available.** Android 15 and later, *and* a hardware capability on top of
+  that: plenty of API 35 devices answer `false`. Check `nfc.capabilities.observeMode`, and read
+  `session.observeMode` rather than assuming your request took effect — believing the card is silent
+  while it is answering is the worst outcome available here, because the user is never asked and the
+  transaction happens anyway.
+</Warning>
+
 - **The platform grants it only to the service it prefers.** That is what
   `preferSelf` (on by default) asks for, and it needs a foreground activity, so
   `session.preferred` tells you whether it was granted. Without it, observe mode
@@ -155,6 +177,8 @@ By default a preferred service sees the frames while the app is in front.
 Registering filters asks for specific ones:
 
 ```ts
+import { hce } from 'react-native-nfc-kit/hce';
+
 await hce.start({
   onCommand,
   pollingLoopFilters: [
@@ -169,9 +193,11 @@ is the low-latency route for a reader you already trust, and it gives up the
 confirmation step observe mode exists to allow — a decision about trust rather than
 about speed.
 
-A frame's `gain` is vendor-specific, `-1` when the controller does not report it,
-and not a distance. Its `timestamp` is the platform's own monotonic value: sound
-for ordering frames and measuring the gap between them, and nothing else.
+<Note>
+  A frame's `gain` is vendor-specific, `-1` when the controller does not report it, and **not a
+  distance**. Its `timestamp` is the platform's own monotonic value: sound for ordering frames and
+  measuring the gap between them, and nothing else.
+</Note>
 
 ## Bare React Native
 
@@ -179,7 +205,7 @@ for ordering frames and measuring the gap between them, and nothing else.
 
 Inside `<application>`:
 
-<!-- generated: hce.service -->
+{/* generated: hce.service */}
 
 ```xml
 <service android:name="com.nfckit.hce.NfcKitHostApduService" android:exported="true" android:permission="android.permission.BIND_NFC_SERVICE">
@@ -190,7 +216,7 @@ Inside `<application>`:
 </service>
 ```
 
-<!-- /generated -->
+{/* /generated */}
 
 `android:exported="true"` and the permission are not a choice: the NFC system
 service binds this from another process, and the permission is what makes it the
@@ -199,7 +225,7 @@ uses.
 
 ### `android/app/src/main/res/xml/nfc_kit_apduservice.xml`
 
-<!-- generated: hce.apduService -->
+{/* generated: hce.apduService */}
 
 ```xml
 <host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android" android:description="@string/nfc_kit_hce_description" android:requireDeviceUnlock="false">
@@ -209,18 +235,18 @@ uses.
 </host-apdu-service>
 ```
 
-<!-- /generated -->
+{/* /generated */}
 
 ### `android/app/src/main/res/values/strings.xml`
 
-<!-- generated: hce.strings -->
+{/* generated: hce.strings */}
 
 ```xml
 <string name="nfc_kit_hce_description" translatable="false">Ventry building access</string>
 <string name="nfc_kit_hce_group_0" translatable="false">Doors</string>
 ```
 
-<!-- /generated -->
+{/* /generated */}
 
 The descriptions have to be string resources: the platform rejects a literal in
 `host-apdu-service`, and they are user-visible, so they should be translatable
@@ -241,6 +267,7 @@ import {
   StatusWord,
   decodeCommandApdu,
   encodeResponseApdu,
+  hce,
   statusResponse,
 } from 'react-native-nfc-kit/hce';
 
@@ -275,6 +302,8 @@ Then tap a terminal. If nothing happens, in order of likelihood: the terminal is
 selecting a different AID, the app is not in the foreground, or
 `requireDeviceUnlock` is `true` and the phone is locked.
 
-For observe mode specifically, `session.preferred` being `false` explains most
-failures: the platform will not hand observe mode or polling frames to a service
-it is not currently routing taps to.
+<Tip>
+  For observe mode specifically, `session.preferred` being `false` explains most failures: the
+  platform will not hand observe mode or polling frames to a service it is not currently routing
+  taps to.
+</Tip>

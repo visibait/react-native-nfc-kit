@@ -1,50 +1,50 @@
 ---
-title: Bare React Native
-description: Installing without the Expo SDK, and writing by hand what prebuild would have written.
+title: 'Bare React Native'
+description: 'Installing without the Expo SDK, and writing by hand what prebuild would have written.'
 ---
 
-This library is built on the Expo Modules API, which does **not** require the Expo
-SDK. It requires the `expo` package, which ships the module and autolinking
-infrastructure and little else.
+<Info>
+  This library is built on the Expo Modules API, which does **not** require the Expo SDK. It
+  requires the `expo` package, which ships the module and autolinking infrastructure and little
+  else.
+</Info>
 
 Bare React Native is a supported route, not a footnote. The only thing you give up
 is the config plugin, because there is no `prebuild` to run it — so the plist keys
-and manifest XML are yours to write, and every page under `docs/setup/` gives you
-exactly what to write.
+and manifest XML are yours to write, and every [setup page](/setup/overview) gives
+you exactly what to write.
 
 ## Install
 
-```bash
+<CodeGroup>
+
+```bash Automatic
 npx install-expo-modules@latest
 npm install react-native-nfc-kit
 npx pod-install
 ```
 
-`install-expo-modules` adds the `expo` package, switches the Babel config to
-`babel-preset-expo`, and extends `metro.config.js` from `expo/metro-config`.
-
-### Or by hand
-
-```bash
+```bash By hand
 npm install expo react-native-nfc-kit
+npx pod-install
 ```
 
-`babel.config.js`:
+</CodeGroup>
 
-```js
+`install-expo-modules` adds the `expo` package, switches the Babel config to
+`babel-preset-expo`, and extends `metro.config.js` from `expo/metro-config`. Doing
+it by hand means writing those three things yourself:
+
+```js babel.config.js
 module.exports = { presets: ['babel-preset-expo'] };
 ```
 
-`metro.config.js`:
-
-```js
+```js metro.config.js
 const { getDefaultConfig } = require('expo/metro-config');
 module.exports = getDefaultConfig(__dirname);
 ```
 
-iOS deployment target of 16.4 or higher, in `ios/Podfile`:
-
-```ruby
+```ruby ios/Podfile
 platform :ios, '16.4'
 ```
 
@@ -67,10 +67,20 @@ arrange and no `-weak_framework CoreNFC` hack to copy from anywhere.
 Pick the page for what you are building and copy the blocks under **Bare React
 Native**:
 
-- [ndef.md](ndef.md) — the baseline every project needs
-- [iso7816.md](iso7816.md) — plus the AIDs you select
-- [felica.md](felica.md) — plus the system codes you read
-- [background-reading.md](background-reading.md) — plus intent filters
+<CardGroup cols={2}>
+  <Card title="NDEF" icon="tag" href="/setup/ndef">
+    The baseline every project needs.
+  </Card>
+  <Card title="ISO 7816" icon="credit-card" href="/setup/iso7816">
+    Plus the AIDs you select.
+  </Card>
+  <Card title="FeliCa" icon="train-subway" href="/setup/felica">
+    Plus the system codes you read.
+  </Card>
+  <Card title="Background tags" icon="mobile" href="/setup/background-reading">
+    Plus intent filters.
+  </Card>
+</CardGroup>
 
 Those blocks are generated from the config plugin and checked in CI, so they are
 what an Expo project would have got, not a description of it.
@@ -80,13 +90,16 @@ what an Expo project would have got, not a description of it.
 Editing the entitlements file is not enough on its own. The App ID needs the
 capability too:
 
-1. In the Apple Developer portal, open your App ID.
-2. Enable **Near Field Communication Tag Reading**.
-3. Regenerate the provisioning profile.
-
-With "Automatically manage signing" in Xcode this happens for you. With a manually
-managed profile it does not, and the failure appears at runtime as a session that
-will not open.
+<Steps>
+  <Step title="Open your App ID">In the Apple Developer portal.</Step>
+  <Step title="Enable Near Field Communication Tag Reading">
+    In the identifier's capability list.
+  </Step>
+  <Step title="Regenerate the provisioning profile">
+    With "Automatically manage signing" in Xcode this happens for you. With a manually managed
+    profile it does not, and the failure appears at runtime as a session that will not open.
+  </Step>
+</Steps>
 
 ## Verifying autolinking
 
@@ -94,13 +107,19 @@ If the module did not link, every call fails with `contractMismatch` and a messa
 telling you to rebuild — which is the right answer often enough to be worth
 checking first.
 
-```bash
-# iOS: the pod should be listed.
-grep -r ReactNativeNfcKit ios/Podfile.lock
+<CodeGroup>
 
-# Android: the module should be in the generated autolinking package list.
+```bash iOS
+# The pod should be listed.
+grep -r ReactNativeNfcKit ios/Podfile.lock
+```
+
+```bash Android
+# The module should be in the generated autolinking package list.
 grep -r nfckit android/app/build/generated/autolinking/ 2>/dev/null
 ```
+
+</CodeGroup>
 
 On Android, a fresh `./gradlew :app:assembleDebug` regenerates that list. On iOS,
 `npx pod-install` after any dependency change.

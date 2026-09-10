@@ -1,6 +1,7 @@
 ---
-title: Setup
-description: Most NFC support questions are setup questions. One page per use case, with both the Expo plugin option and the exact plist and manifest XML for a bare project.
+title: 'Setup'
+sidebarTitle: 'Overview'
+description: 'Most NFC support questions are setup questions. One page per use case, with both the Expo plugin option and the exact plist and manifest XML for a bare project.'
 ---
 
 Most NFC support questions are setup questions. A tag that works on Android and
@@ -10,29 +11,38 @@ configuration, none of it visible from the JavaScript.
 
 So each page here covers one use case and gives **both routes**:
 
-- **Expo** — the plugin options to put in `app.json`.
-- **Bare React Native** — the exact plist keys and manifest XML to write by hand,
-  because a bare project has no `prebuild` to write them for you.
+<CardGroup cols={2}>
+  <Card title="Expo" icon="puzzle-piece">
+    The plugin options to put in `app.json`.
+  </Card>
+  <Card title="Bare React Native" icon="screwdriver-wrench">
+    The exact plist keys and manifest XML to write by hand, because a bare project has no `prebuild`
+    to write them for you.
+  </Card>
+</CardGroup>
 
-The bare snippets are not transcribed. They are generated from the config plugin
-and compared against these files in CI, so the two routes cannot drift apart.
+<Info>
+  The bare snippets are not transcribed. They are **generated from the config plugin** and compared
+  against these pages in CI, so the two routes cannot drift apart.
+</Info>
 
 ## Pick your page
 
-| You want to                                   | Page                                           |
-| --------------------------------------------- | ---------------------------------------------- |
-| Read or write NDEF tags                       | [ndef.md](ndef.md)                             |
-| Send APDUs to a smartcard (DESFire, JavaCard) | [iso7816.md](iso7816.md)                       |
-| Read FeliCa cards                             | [felica.md](felica.md)                         |
-| Read MIFARE Classic                           | [mifare-classic.md](mifare-classic.md)         |
-| Handle a tag that launches your app           | [background-reading.md](background-reading.md) |
-| Emulate a card for a terminal                 | [hce.md](hce.md)                               |
-| Read an Apple Wallet pass                     | [vas.md](vas.md)                               |
-| Read a tag from a browser                     | [web.md](web.md)                               |
-| Install into a bare React Native project      | [bare-react-native.md](bare-react-native.md)   |
+| You want to                                   | Page                                            |
+| --------------------------------------------- | ----------------------------------------------- |
+| Read or write NDEF tags                       | [NDEF](/setup/ndef)                             |
+| Send APDUs to a smartcard (DESFire, JavaCard) | [ISO 7816](/setup/iso7816)                      |
+| Read FeliCa cards                             | [FeliCa](/setup/felica)                         |
+| Read MIFARE Classic                           | [MIFARE Classic](/setup/mifare-classic)         |
+| Handle a tag that launches your app           | [Background reading](/setup/background-reading) |
+| Emulate a card for a terminal                 | [Card emulation](/setup/hce)                    |
+| Read an Apple Wallet pass                     | [Apple Wallet passes](/setup/vas)               |
+| Read a tag from a browser                     | [Web NFC](/setup/web)                           |
+| Install into a bare React Native project      | [Bare React Native](/setup/bare-react-native)   |
 
 ## Before anything else: you need a development build
 
+<Warning>
 NFC is native code, so it cannot run in Expo Go. `npx expo run:ios`,
 `npx expo run:android`, `eas build` and `eas build --local` all produce a
 development build that works.
@@ -40,6 +50,8 @@ development build that works.
 This is not a temporary state of affairs: Expo Go on the App Store is frozen at
 SDK 54, and Expo now positions it as a learning tool rather than a development
 target.
+
+</Warning>
 
 ## How to check what you actually got
 
@@ -53,19 +65,21 @@ npx expo config --type prebuild
 EXPO_DEBUG=1 npx expo prebuild --clean
 ```
 
-Then read the files. On iOS:
+Then read the files.
 
-```bash
+<CodeGroup>
+
+```bash iOS
 cat ios/*/Info.plist
 cat ios/*/*.entitlements
 ```
 
-On Android:
-
-```bash
+```bash Android
 cat android/app/src/main/AndroidManifest.xml
 cat android/app/src/main/res/xml/nfc_kit_tech_filter.xml
 ```
+
+</CodeGroup>
 
 If a value you expected is missing, the plugin either was not applied or rejected
 your options — it fails the prebuild with a message naming the option rather than

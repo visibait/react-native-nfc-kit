@@ -1,6 +1,7 @@
 ---
-title: The NDEF codec
-description: Building and parsing NDEF messages, with no native dependency, in a bundler or in Node.
+title: 'The NDEF codec'
+sidebarTitle: 'NDEF codec'
+description: 'Building and parsing NDEF messages, with no native dependency, in a bundler or in Node.'
 ---
 
 ```ts
@@ -37,9 +38,11 @@ for (const record of decodeMessage(bytes)) {
 }
 ```
 
-Every `decodeXxxRecord` is paired with an `isXxxRecord` guard. Calling a decoder
-on the wrong record type throws `invalidArgument` rather than returning garbage,
-so the guard is not optional politeness — it is how you avoid the throw.
+<Warning>
+  Every `decodeXxxRecord` is paired with an `isXxxRecord` guard. Calling a decoder on the wrong
+  record type throws `invalidArgument` rather than returning garbage, so the guard is not optional
+  politeness — it is how you avoid the throw.
+</Warning>
 
 ## Writing a tag
 
@@ -65,9 +68,11 @@ if (encodedMessageLength(records) > tagCapacity) {
 const bytes = encodeMessage(records);
 ```
 
-Encoding an empty list produces the canonical empty message — a single record
-with TNF `0x00` — which is what erasing a tag writes. Producing zero bytes
-instead would leave whatever was previously on the tag partially readable.
+<Note>
+  Encoding an empty list produces the canonical empty message — a single record with TNF `0x00` —
+  which is what erasing a tag writes. Producing zero bytes instead would leave whatever was
+  previously on the tag partially readable.
+</Note>
 
 ## Record types
 
@@ -91,9 +96,11 @@ so it cannot collide with another app's records the way a bare MIME type can:
 createExternalRecord('ventry.es:ticket', payload);
 ```
 
-An **absolute URI record** keeps the URI in the record's _type_ field rather than
-the payload. This surprises almost everyone. For an ordinary link, use the
-well-known URI record (`createUriRecord`) instead.
+<Warning>
+  An **absolute URI record** keeps the URI in the record's *type* field rather than the payload.
+  This surprises almost everyone. For an ordinary link, use the well-known URI record
+  (`createUriRecord`) instead.
+</Warning>
 
 ### URI prefix abbreviation
 
@@ -167,8 +174,10 @@ A record can set the Chunk Flag to continue its payload in the records that
 follow. `decodeMessage` reassembles those transparently: you get one record with
 the full payload, and never see `CF`.
 
-This matters more than it sounds. A decoder that ignores the flag does not fail
-loudly — it returns a truncated payload that looks plausible.
+<Warning>
+  This matters more than it sounds. A decoder that ignores the flag does not fail loudly — it
+  returns a truncated payload that looks plausible.
+</Warning>
 
 The encoder deliberately never _emits_ chunks. Chunking exists so a writer can
 stream a payload whose length it does not yet know, which never applies once the
@@ -278,7 +287,8 @@ Malformed-input errors name the offset and the field, so a bug report says which
 byte was missing rather than just "invalid tag".
 
 Use `NfcError.is()` rather than `instanceof`: it brands on the error's name, so it
-keeps working when two copies of the package end up in one bundle.
+keeps working when two copies of the package end up in one bundle. Every code is in
+[the error reference](/errors).
 
 ## Strictness, and where it is deliberately relaxed
 
@@ -304,3 +314,14 @@ strictness would make valid tags unreadable.
 - A text record with the reserved status bit set
 - Reserved URI prefix identifiers and unknown TNF values
 - Unrecognised records inside a Smart Poster, returned rather than dropped
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Tags" icon="tag" href="/concepts/tags">
+    `readNdef`, `writeNdef`, `getNdefStatus` and formatting.
+  </Card>
+  <Card title="Tag protocols" icon="microchip" href="/protocols">
+    Below NDEF: ISO 7816, ISO 15693, FeliCa, NTAG.
+  </Card>
+</Columns>

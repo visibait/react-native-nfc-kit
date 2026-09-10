@@ -1,6 +1,6 @@
 ---
-title: Web NFC
-description: The same API in a browser, what a browser can actually do, and what it refuses rather than guessing.
+title: 'Web NFC'
+description: 'The same API in a browser, what a browser can actually do, and what it refuses rather than guessing.'
 ---
 
 The same API works in a browser, backed by Web NFC. No import changes and no
@@ -21,9 +21,11 @@ is the same code running.
 
 ## What you actually get
 
-**Chrome on Android, and nothing else** at the time of writing. Not Safari, not
-Firefox, not desktop Chrome. `nfc.isSupported()` answers honestly, so a page can
-hide its NFC affordance rather than offering something that cannot work.
+<Warning>
+  **Chrome on Android, and nothing else** at the time of writing. Not Safari, not Firefox, not
+  desktop Chrome. `nfc.isSupported()` answers honestly, so a page can hide its NFC affordance rather
+  than offering something that cannot work.
+</Warning>
 
 **NDEF only.** A browser is handed records the platform has already interpreted; it
 never gets the radio. So:
@@ -32,15 +34,17 @@ never gets the radio. So:
 | ------------------------------ | ------------------------------------------ |
 | `tag.readNdef()`               | Works                                      |
 | `tag.writeNdef()`              | Works, with the caveat below               |
-| `tag.makeNdefReadOnly()`       | Works where the browser implements it      |
+| `tag.makeReadOnly()`           | Works where the browser implements it      |
 | `tag.getNdefStatus()`          | Rejects `unsupportedPlatform`              |
 | `tag.is('isoDep')` and friends | Always `false`                             |
 | `transceive`, timeouts, format | Reject `unsupportedPlatform`               |
 | `hce`, `vas`, background tags  | Reject, and their capabilities are `false` |
 
-`getNdefStatus` rejecting is deliberate. Web NFC reports neither whether a tag is
-writable nor how much room it has, and returning invented numbers would only move
-the failure to the write, where it would surface as something else entirely.
+<Note>
+  `getNdefStatus` rejecting is deliberate. Web NFC reports neither whether a tag is writable nor how
+  much room it has, and returning invented numbers would only move the failure to the write, where
+  it would surface as something else entirely.
+</Note>
 
 **A write is not aimed at a tag.** `NDEFReader.write` writes to whichever tag is
 next in the field rather than to the one your handle refers to. In practice that is
@@ -70,11 +74,18 @@ bytes.
 
 Two things it refuses rather than guessing:
 
-- **Writing a smart poster.** Web NFC's write API builds records itself and cannot
-  express a nested message. Write the URL and the title as separate records, or
-  write that tag from a phone.
-- **A record type Web NFC reports that this library does not recognise.** Reading
-  it as opaque bytes would be a guess about what it means.
+<AccordionGroup>
+  <Accordion title="Writing a smart poster" icon="image">
+    Web NFC's write API builds records itself and cannot express a nested message. Write the URL and
+    the title as separate records, or write that tag from a phone.
+  </Accordion>
+  <Accordion
+    title="A record type Web NFC reports that this library does not recognise"
+    icon="circle-question"
+  >
+    Reading it as opaque bytes would be a guess about what it means.
+  </Accordion>
+</AccordionGroup>
 
 ## Setup
 
@@ -85,8 +96,10 @@ from a user gesture.
 ## Whether it is worth using
 
 Honestly: rarely as a product, often as a tool. It is a small share of browsers on
-one platform, and any app that needs a tag on iOS needs a native build anyway. What
-it is genuinely good for is a debugging page, an internal tool, or reading a tag
-from a laptop-adjacent workflow — and the NDEF codec at
-`react-native-nfc-kit/ndef` runs anywhere with no NFC at all, including Node, if
-all you need is to build or parse a message.
+one platform, and any app that needs a tag on iOS needs a native build anyway.
+
+<Tip>
+  What it is genuinely good for is a debugging page, an internal tool, or reading a tag from a
+  laptop-adjacent workflow — and [the NDEF codec](/ndef) runs anywhere with no NFC at all, including
+  Node, if all you need is to build or parse a message.
+</Tip>

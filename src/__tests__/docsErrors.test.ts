@@ -16,7 +16,7 @@ import { NFC_ERROR_CODES } from '../errors.js';
  * nothing.
  */
 
-const REFERENCE = path.join(__dirname, '..', '..', 'docs', 'errors.md');
+const REFERENCE = path.join(__dirname, '..', '..', 'docs', 'errors.mdx');
 const contents = fs.readFileSync(REFERENCE, 'utf8');
 
 /**

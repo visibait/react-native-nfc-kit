@@ -1,0 +1,216 @@
+---
+title: 'React hooks'
+description: 'useNfcAvailability, useNfcScan and useNfcTagStream — and the three mistakes they exist to prevent.'
+---
+
+```ts
+import { useNfcAvailability, useNfcScan, useNfcTagStream } from 'react-native-nfc-kit/react';
+```
+
+They live on a subpath so the core API never imports React. That matters for two
+real cases: a plain Node script that parses NDEF, and any consumer whose bundler
+would otherwise pull React into a module that has no components in it.
+
+Each hook exists because of a specific mistake that is easy to make by hand and
+invisible when made:
+
+<CardGroup cols={3}>
+  <Card title="Unmounting mid-scan" icon="door-open">
+    Navigating away leaves the iOS sheet up and Android's controller held. The next scan fails with
+    `systemBusy`, for reasons nowhere on screen.
+  </Card>
+  <Card title="Re-subscribing every render" icon="rotate">
+    An inline options object restarts reader mode on every render, which reads as "NFC randomly
+    stops working" long before it reads as a dependency-array bug.
+  </Card>
+  <Card title="Prompting with NFC off" icon="power-off">
+    Android users can switch NFC off while your screen is open. A button saying "hold your card near
+    the phone" is then a support ticket.
+  </Card>
+</CardGroup>
+
+## useNfcAvailability
+
+Availability of NFC on this device, kept current.
+
+```tsx
+import { nfc } from 'react-native-nfc-kit';
+import { useNfcAvailability } from 'react-native-nfc-kit/react';
+
+function NfcGate({ children }) {
+  const { ready, supported, loading } = useNfcAvailability();
+
+  if (loading) return <Spinner />;
+  if (!supported) return <Text>This device has no NFC.</Text>;
+  if (!ready) return <Button title="Turn NFC on" onPress={() => nfc.openSettings()} />;
+
+  return children;
+}
+```
+
+<ResponseField name="ready" type="boolean">
+  NFC is present **and** switched on. This is what a screen usually asks.
+</ResponseField>
+<ResponseField name="supported" type="boolean">
+  The hardware exists.
+</ResponseField>
+<ResponseField name="enabled" type="boolean">
+  It is switched on. A real answer on iOS, not a hardcoded `true`.
+</ResponseField>
+<ResponseField name="capabilities" type="NfcCapabilities | null">
+  Per-device capabilities: `techs`, `hce`, `observeMode`, `pollingFrames`, `vas`,
+  `backgroundReading`, `tagLost`.
+</ResponseField>
+<ResponseField name="loading" type="boolean">
+  True until the first answer arrives.
+</ResponseField>
+<ResponseField name="refresh" type="() => void">
+  Re-reads availability now. Rarely needed — changes arrive on their own.
+</ResponseField>
+
+<Warning>
+  Treat `loading` as "do not decide yet". Before the first answer arrives, `supported` and `enabled`
+  read `false`, so rendering the unsupported state without checking `loading` flashes "this device
+  has no NFC" on a device that has NFC.
+</Warning>
+
+This subscribes rather than reading once, because the Android user can change the
+answer while your screen is open.
+
+## useNfcScan
+
+One scan, driven from a component.
+
+```tsx
+import { useNfcScan } from 'react-native-nfc-kit/react';
+
+function ScanButton() {
+  const { scan, cancel, scanning, data, error } = useNfcScan(
+    async (tag) => {
+      if (!tag.is('ndef')) throw new Error('Not an NDEF tag');
+      return tag.readNdef();
+    },
+    { tech: ['ndef'], timeoutMs: 20_000 },
+  );
+
+  return (
+    <>
+      <Button title={scanning ? 'Cancel' : 'Scan'} onPress={scanning ? cancel : scan} />
+      {error ? <Text>{error.message}</Text> : null}
+    </>
+  );
+}
+```
+
+The second argument is the same [`ScanOptions`](/concepts/sessions#options-in-full)
+every entry point takes.
+
+<ResponseField name="scan" type="() => Promise<T | null>">
+  Starts a scan. **Never rejects** — the outcome lands in `state`, `data` and `error`, which is what
+  a button's `onPress` wants. Resolves to `null` when the scan failed or was cancelled.
+</ResponseField>
+<ResponseField name="scanAsync" type="() => Promise<T>">
+  The same scan, but it rejects, for imperative flows. It rejects with exactly what was thrown, so
+  an error your own `work` threw comes back unchanged.
+</ResponseField>
+<ResponseField name="cancel" type="() => void">
+  Cancels a scan in progress. Safe to call when nothing is running.
+</ResponseField>
+<ResponseField name="reset" type="() => void">
+  Returns to `idle`, clearing `data` and `error`.
+</ResponseField>
+<ResponseField name="state" type="'idle' | 'scanning' | 'success' | 'error'" />
+<ResponseField name="scanning" type="boolean" />
+<ResponseField name="data" type="T | null" />
+<ResponseField name="error" type="NfcError | null">
+  Normalised to an `NfcError`, because a state field needs one type. Use `scanAsync` when you want
+  the original throw.
+</ResponseField>
+
+Three things this handles that hand-written versions usually do not:
+
+<AccordionGroup>
+  <Accordion title="Unmounting cancels the scan" icon="door-open">
+    Navigating away mid-scan would otherwise leave the iOS sheet up and Android's NFC controller
+    held, and the next scan fails with `systemBusy` for reasons that are nowhere on screen.
+  </Accordion>
+  <Accordion title="A second scan() joins the first" icon="link">
+    Rather than starting a second session. A double tap is not a request for two sessions — and the
+    platform would refuse the second anyway.
+  </Accordion>
+  <Accordion title="work and options are read at call time" icon="clock">
+    So they never need memoising, and a stale closure cannot read last render's state.
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  Cancelling settles as `idle` rather than `error`: the user asked for it, so there is nothing to
+  report to them.
+</Note>
+
+## useNfcTagStream
+
+Reads tags continuously while the component is mounted. This is the kiosk shape: a
+door reader, a top-up terminal, a check-in desk.
+
+```tsx
+import { useIsFocused } from '@react-navigation/native';
+import { useNfcTagStream } from 'react-native-nfc-kit/react';
+
+function DoorScreen() {
+  const isFocused = useIsFocused();
+
+  const { active, error } = useNfcTagStream(
+    {
+      tech: ['isoDep'],
+      android: { presenceCheckDelayMs: 500 },
+      enabled: isFocused,
+    },
+    async (tag) => {
+      if (tag.is('isoDep')) await validateTicket(tag);
+    },
+  );
+
+  return <Text>{active ? 'Ready for a card' : (error?.message ?? 'Paused')}</Text>;
+}
+```
+
+<ResponseField name="enabled" type="boolean" default="true">
+  Whether the stream should be running. **Set it from screen focus.** A reader-mode stream left
+  running on a screen nobody is looking at keeps Android's NFC controller held, so the next screen
+  that wants a tag cannot have one — and nothing on that screen explains why.
+</ResponseField>
+<ResponseField name="active" type="boolean">
+  Whether the stream is currently running.
+</ResponseField>
+<ResponseField name="error" type="NfcError | null">
+  The failure that ended the stream, or `null`. Cleared when it restarts.
+</ResponseField>
+
+<Warning>
+  **This is really an Android feature.** Reader mode stays up indefinitely there. iOS caps a session
+  at 60 seconds with a system sheet on screen throughout, so the stream ends with `sessionTimeout`
+  and `error` is set. Restarting is left to you, because on iOS restarting means putting the sheet
+  back up — a product decision rather than a technical one.
+</Warning>
+
+The listener is read at call time, so it never needs memoising. The options are
+compared **by value**, so an inline object literal does not restart the stream.
+
+## Without the hooks
+
+Nothing here is required. Every hook is a thin wrapper over
+[`nfc.withTag`, `nfc.onTag` and `nfc.getAvailability`](/concepts/sessions), and
+using those directly is a supported, ordinary thing to do — you just take on the
+cancellation and subscription bookkeeping yourself.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Sessions" icon="play" href="/concepts/sessions">
+    What the hooks are wrapping.
+  </Card>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    A complete screen, end to end.
+  </Card>
+</Columns>

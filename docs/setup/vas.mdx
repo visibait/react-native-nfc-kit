@@ -1,6 +1,7 @@
 ---
-title: Reading an Apple Wallet pass
-description: The till side of Value Added Service, and the entitlement Apple grants case by case.
+title: 'Reading an Apple Wallet pass'
+sidebarTitle: 'Apple Wallet (VAS)'
+description: 'The till side of Value Added Service, and the entitlement Apple grants case by case.'
 ---
 
 Value Added Service is how a till reads a loyalty card or a ticket out of Apple
@@ -23,16 +24,22 @@ if (response?.statusName === 'success') {
 
 ## Read this before you plan around it
 
-**iOS only.** There is no Android equivalent to expose: VAS is an Apple protocol
-read through CoreNFC's own session type. `nfc.capabilities.vas` is `false` on
-Android, and `vas.read` rejects with `unsupportedPlatform` there.
+<Warning>
+  **iOS only.** There is no Android equivalent to expose: VAS is an Apple protocol read through
+  CoreNFC's own session type. `nfc.capabilities.vas` is `false` on Android, and `vas.read` rejects
+  with `unsupportedPlatform` there.
+</Warning>
 
+<Warning>
 **It needs an entitlement Apple grants case by case, and Apple has not published
-what it is.** Their own documentation says: _"Using NFCVASReaderSession requires an
+what it is.** Their own documentation says: *"Using NFCVASReaderSession requires an
 entitlement from Apple. Updates will include information about the entitlement and
-a link to the entitlement request form."_ As of writing, that update has not
-happened, and the documented values for
+a link to the entitlement request form."*
+
+As of writing, that update has not happened, and the documented values for
 `com.apple.developer.nfc.readersession.formats` do not include one for VAS.
+
+</Warning>
 
 That is not as unhelpful as it sounds, and it is worth being precise about why:
 request-gated entitlements work by Apple giving you the key when they approve you.
@@ -40,10 +47,11 @@ It appears in your App ID's capabilities, Xcode picks it up, and your provisioni
 profile carries it. So **an app that has been granted it knows what to declare** —
 you do not need this library to guess, and it deliberately does not.
 
-**Nothing can check for it in advance.** There is no API that reports whether the
-entitlement was granted, so `vas.isSupported()` answers a narrower question: is
-this an iPhone that can read NFC at all. The entitlement shows up the first time
-you read, as `entitlementMissing`.
+<Note>
+  **Nothing can check for it in advance.** There is no API that reports whether the entitlement was
+  granted, so `vas.isSupported()` answers a narrower question: is this an iPhone that can read NFC
+  at all. The entitlement shows up the first time you read, as `entitlementMissing`.
+</Note>
 
 ## Expo
 
@@ -51,7 +59,7 @@ No plugin option, because there is nothing for the plugin to write that it could
 know. Once Apple grants you the entitlement, put the key they give you in
 `app.json` — `ios.entitlements` is a first-class Expo field:
 
-```json
+```json app.json
 {
   "expo": {
     "ios": {
@@ -64,12 +72,13 @@ know. Once Apple grants you the entitlement, put the key they give you in
 ```
 
 You also need the `react-native-nfc-kit` plugin for the usage description and the
-reader-session format, exactly as in [ndef.md](ndef.md); VAS adds nothing to that.
+reader-session format, exactly as in [NDEF setup](/setup/ndef); VAS adds nothing to
+that.
 
 ## Bare React Native
 
-Same picture: the entitlements from [ndef.md](ndef.md), plus whatever key Apple
-gives you, in `ios/<App>/<App>.entitlements`.
+Same picture: the entitlements from [NDEF setup](/setup/ndef), plus whatever key
+Apple gives you, in `ios/<App>/<App>.entitlements`.
 
 ## The pass type identifier
 
@@ -81,6 +90,8 @@ Several may be listed, and the phone answers for whichever it holds. That is how
 till that accepts more than one kind of pass is built:
 
 ```ts
+import { vas } from 'react-native-nfc-kit/vas';
+
 await vas.read({
   configurations: [
     { passTypeIdentifier: 'pass.es.ventry.entrada' },
@@ -113,9 +124,11 @@ names so a caller does not have to memorise hex:
 | `incorrectData`                 | `0x6A80` | The pass rejected the request data        |
 | `unsupportedApplicationVersion` | `0x6340` | The pass is too old or too new            |
 
-`dataNotFound` is the common one and is not a failure: it means the customer does
-not have your pass. Distinguishing it from an error is why the status is named
-rather than left as a number.
+<Tip>
+  `dataNotFound` is the common one and is **not a failure**: it means the customer does not have
+  your pass. Distinguishing it from an error is why the status is named rather than left as a
+  number.
+</Tip>
 
 ## Not validated on hardware
 
@@ -123,5 +136,5 @@ Everything here follows from CoreNFC's own header — the mode values, the statu
 words, the initialiser and delegate signatures were all read out of it rather than
 recalled — and it compiles against the real CoreNFC in CI. What has **not** been
 done is a read against an actual Wallet pass, because that needs the entitlement.
-It is a row in the device matrix, marked unvalidated, and a report either way from
-anyone who has the entitlement is welcome.
+It is a row in [the device matrix](/device-matrix), marked unvalidated, and a report
+either way from anyone who has the entitlement is welcome.

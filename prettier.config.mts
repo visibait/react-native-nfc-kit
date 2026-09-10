@@ -10,7 +10,7 @@ const config: Config = {
   endOfLine: 'lf',
   overrides: [
     {
-      files: ['*.md'],
+      files: ['*.md', '*.mdx'],
       options: { proseWrap: 'preserve' },
     },
   ],

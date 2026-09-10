@@ -84,7 +84,7 @@ function markdownFiles(): string[] {
       const full = path.join(directory, entry.name);
       if (entry.isDirectory()) {
         walk(full);
-      } else if (entry.name.endsWith('.md')) {
+      } else if (/\.mdx?$/.test(entry.name)) {
         found.push(full);
       }
     }

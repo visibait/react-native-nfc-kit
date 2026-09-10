@@ -2,45 +2,91 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "react-native-nfc-kit",
-  "description": "Modern, typed NFC for React Native and Expo.",
+  "description": "Modern, typed NFC for React Native and Expo. New Architecture native, Swift and Kotlin, sessions that cannot leak.",
   "colors": {
     "primary": "#0F766E",
     "light": "#2DD4BF",
-    "dark": "#0F766E"
+    "dark": "#0D9488"
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "/"
+  },
+  "favicon": "/favicon.svg",
+  "appearance": {
+    "default": "system"
+  },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude"]
   },
   "navigation": {
-    "groups": [
+    "tabs": [
       {
-        "group": "Start here",
-        "pages": ["index", "setup/overview"]
-      },
-      {
-        "group": "Setup, per use case",
-        "pages": [
-          "setup/ndef",
-          "setup/iso7816",
-          "setup/felica",
-          "setup/mifare-classic",
-          "setup/background-reading",
-          "setup/hce",
-          "setup/vas",
-          "setup/web",
-          "setup/bare-react-native"
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get started",
+            "icon": "rocket",
+            "pages": ["index", "installation", "quickstart"]
+          },
+          {
+            "group": "Core concepts",
+            "icon": "book-open",
+            "pages": ["concepts/sessions", "concepts/tags"]
+          },
+          {
+            "group": "Setup, per use case",
+            "icon": "wrench",
+            "pages": [
+              "setup/overview",
+              "setup/ndef",
+              "setup/iso7816",
+              "setup/felica",
+              "setup/mifare-classic",
+              "setup/background-reading",
+              "setup/hce",
+              "setup/vas",
+              "setup/web",
+              "setup/bare-react-native"
+            ]
+          },
+          {
+            "group": "Going further",
+            "icon": "layer-group",
+            "pages": ["ndef", "protocols", "react"]
+          }
         ]
       },
       {
-        "group": "Guides",
-        "pages": ["ndef", "errors", "migrating-from-nfc-manager", "device-matrix"]
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Reference",
+            "icon": "list",
+            "pages": ["errors", "device-matrix"]
+          },
+          {
+            "group": "Coming from elsewhere",
+            "icon": "arrow-right-arrow-left",
+            "pages": ["migrating-from-nfc-manager"]
+          }
+        ]
       }
     ]
   },
   "navbar": {
     "links": [
       {
-        "label": "GitHub",
-        "href": "https://github.com/visibait/react-native-nfc-kit"
+        "label": "npm",
+        "icon": "npm",
+        "href": "https://www.npmjs.com/package/react-native-nfc-kit"
       }
-    ]
+    ],
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/visibait/react-native-nfc-kit"
+    }
   },
   "footer": {
     "socials": {

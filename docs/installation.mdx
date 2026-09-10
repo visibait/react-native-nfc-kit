@@ -1,0 +1,152 @@
+---
+title: 'Installation'
+description: 'Install into an Expo or a bare React Native project, and get a development build that can actually see a tag.'
+---
+
+<Steps>
+  <Step title="Install the package">
+    <CodeGroup>
+
+    ```bash Expo
+    npx expo install react-native-nfc-kit
+    ```
+
+    ```bash npm
+    npm install react-native-nfc-kit
+    ```
+
+    ```bash pnpm
+    pnpm add react-native-nfc-kit
+    ```
+
+    ```bash yarn
+    yarn add react-native-nfc-kit
+    ```
+
+    </CodeGroup>
+
+  </Step>
+
+  <Step title="Add the config plugin">
+    In `app.json` or `app.config.js`. The usage description is the text iOS shows
+    in the scanning sheet, and it is the only explanation your user gets for why
+    the phone is asking about a card — write your own.
+
+    ```json app.json
+    {
+      "expo": {
+        "plugins": [
+          [
+            "react-native-nfc-kit",
+            { "readerUsageDescription": "Hold your card near the top of the phone" }
+          ]
+        ]
+      }
+    }
+    ```
+
+    That is the whole configuration for reading and writing NDEF tags. Smartcards,
+    FeliCa, card emulation and background tags each need one option more — see
+    [Setup](/setup/overview).
+
+    <Note>
+    Bare React Native has no `prebuild`, so there is no plugin to add. Write the
+    plist keys and manifest XML by hand instead: every setup page gives you exactly
+    what to write, and [Bare React Native](/setup/bare-react-native) covers getting
+    Expo Modules into a bare project in the first place.
+    </Note>
+
+  </Step>
+
+  <Step title="Build">
+    ```bash
+    npx expo prebuild --clean
+    npx expo run:ios      # or run:android
+    ```
+
+    `eas build` and `eas build --local` work too. What does not work is Expo Go.
+
+  </Step>
+
+  <Step title="Check it is really there">
+    ```ts
+    import { nfc } from 'react-native-nfc-kit';
+
+    const { supported, enabled, capabilities } = await nfc.getAvailability();
+    console.log({ supported, enabled, techs: capabilities?.techs });
+    ```
+
+    `supported` false on a device you know has NFC almost always means the native
+    module did not link — rebuild, and see
+    [verifying autolinking](/setup/bare-react-native#verifying-autolinking).
+
+  </Step>
+</Steps>
+
+## You need a development build
+
+<Warning>
+  NFC is native code, so it cannot run in Expo Go, and this is not a temporary state of affairs:
+  Expo Go on the App Store is frozen at SDK 54, and Expo positions it as a learning tool rather than
+  a development target.
+</Warning>
+
+| How you build          | Works? | Notes                                            |
+| ---------------------- | :----: | ------------------------------------------------ |
+| Expo Go                |   ❌   | No native modules, ever                          |
+| `npx expo run:ios`     |   ✅   | Needs Xcode and a **physical** iPhone            |
+| `npx expo run:android` |   ✅   | Needs a physical device; emulators have no radio |
+| `eas build`            |   ✅   | Cloud                                            |
+| `eas build --local`    |   ✅   | Same output, your machine                        |
+| iOS Simulator          |   ❌   | There is no NFC controller to talk to            |
+| Android emulator       |   ❌   | Same                                             |
+
+## Requirements
+
+| Axis                | Minimum                     | Why                                                         |
+| ------------------- | --------------------------- | ----------------------------------------------------------- |
+| Expo SDK            | 57                          | React Native 0.86                                           |
+| React Native (bare) | 0.86, with `expo` installed | New Architecture only; the legacy one is gone from Expo 55+ |
+| iOS                 | 16.4, physical device       | The Expo SDK 57 podspec floor                               |
+| Android             | API 24                      | The Expo SDK 56+ floor                                      |
+| Node                | 20.19.4 / 22.13 / 24.3+     | Expo SDK 57's requirement                                   |
+
+CoreNFC has existed since iOS 11, so with a 16.4 floor there is no weak linking to
+arrange and no `-weak_framework CoreNFC` hack to copy from anywhere.
+
+<Info>
+  **Bare React Native is a supported route, not a footnote.** This library is built on the Expo
+  Modules API, which does **not** require the Expo SDK — it requires the `expo` package, which ships
+  the module and autolinking infrastructure and little else. The only thing you give up is the
+  config plugin.
+</Info>
+
+## The iOS capability
+
+Editing the entitlements file — or letting the plugin write it — is not enough on
+its own. The App ID needs the capability too:
+
+<Steps>
+  <Step title="Open your App ID">
+    In the Apple Developer portal, under **Certificates, Identifiers & Profiles**.
+  </Step>
+  <Step title="Enable Near Field Communication Tag Reading">
+    It is in the capability list for the identifier.
+  </Step>
+  <Step title="Regenerate the provisioning profile">
+    Xcode's "Automatically manage signing" does this for you. A manually managed profile does not,
+    and the failure appears at runtime as a session that will not open, with an error that never
+    mentions provisioning.
+  </Step>
+</Steps>
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Read your first tag" icon="bolt" href="/quickstart">
+    A working scan screen, end to end.
+  </Card>
+  <Card title="Setup for your use case" icon="wrench" href="/setup/overview">
+    Smartcards, FeliCa, HCE, background tags.
+  </Card>
+</Columns>

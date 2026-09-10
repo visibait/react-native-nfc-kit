@@ -1,0 +1,303 @@
+---
+title: 'Tag protocols'
+description: 'ISO 7816, ISO 15693, FeliCa and NTAG/Ultralight as plain TypeScript over one transceive primitive.'
+---
+
+```ts
+import { ... } from 'react-native-nfc-kit/protocols';
+```
+
+Everything here is plain TypeScript over `Uint8Array`, built on a single
+`transceive` primitive. There is no native module and no React Native import — a
+lint rule enforces that — so these layers are unit tested at 100% branch coverage
+rather than on a device, and they work in Node and on the web too.
+
+That is the point of the split: the native side does one thing, which is move bytes
+to and from a tag, and everything that can be reasoned about in software lives here
+where it can be tested properly.
+
+## The transport
+
+Every function takes a **transport**: a function from bytes to bytes. A narrowed tag
+gives you one directly.
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+import { sendApdu, selectByName, describeStatusWord } from 'react-native-nfc-kit/protocols';
+
+await nfc.withTag({ tech: ['isoDep'] }, async (tag) => {
+  if (!tag.is('isoDep')) throw new Error('Not an ISO-DEP tag');
+
+  const transport = (apdu: Uint8Array) => tag.transceive(apdu);
+
+  const selected = await sendApdu(transport, selectByName(aid));
+  if (!selected.ok) throw new Error(describeStatusWord(selected.status));
+});
+```
+
+<Note>
+A transport is a plain function, which is what makes all of this testable without
+hardware: pass `async (bytes) => cannedResponse` and you have a fake card. It is
+also why these helpers work against a reader on a laptop, or against captured
+bytes, with no changes.
+</Note>
+
+<Tabs>
+  <Tab title="ISO 7816">
+
+For DESFire, JavaCard applets, transit cards, EMV-adjacent work — anything where
+you select an application by AID and exchange APDUs.
+
+### Building commands
+
+`selectByName` and friends **return** a `CommandApdu`; they do not send one. That
+separation is what lets you log, cache or assert on a command before it goes out.
+
+| Builder                       | Command                                                       |
+| ----------------------------- | ------------------------------------------------------------- |
+| `selectByName(aid, options?)` | SELECT by DF name. `{ first: true }` for the first occurrence |
+| `selectByFileId(fileId)`      | SELECT by file identifier                                     |
+| `readBinary(offset, length)`  | READ BINARY                                                   |
+| `updateBinary(offset, data)`  | UPDATE BINARY                                                 |
+
+Or write one out. `le` counts **bytes**, so `256` is 256 — the encoding quirk where
+`0x00` means 256 is handled for you:
+
+```ts
+const command = { cla: 0x00, ins: 0xb0, p1: 0x00, p2: 0x00, le: 256 };
+```
+
+### Sending them
+
+```ts
+const response = await sendApdu(transport, command);
+// { data, sw1, sw2, status, statusHex, ok }
+```
+
+`sendApdu` handles `61xx` and `6Cxx` transparently, so the status word you get back
+is the card's actual verdict rather than a protocol detail, and `data` is everything
+the card had to say rather than the first frame of it.
+
+<ResponseField name="followGetResponse" type="boolean" default="true">
+  Follows a `61xx` with GET RESPONSE, concatenating the parts.
+</ResponseField>
+<ResponseField name="retryWrongLength" type="boolean" default="true">
+  Repeats the command with the corrected length after a `6Cxx`.
+</ResponseField>
+<ResponseField name="maxFollowUps" type="number" default="32">
+  How many follow-up exchanges to allow. A card that answers `61xx` forever would otherwise loop
+  until the session times out with nothing to show for it.
+</ResponseField>
+
+For command data larger than one APDU, `sendApduChained` splits it and sets the
+chaining bit for you:
+
+```ts
+const response = await sendApduChained(transport, {
+  cla: 0x00,
+  ins: 0xda,
+  p1: 0,
+  p2: 0,
+  data: large,
+});
+```
+
+### Reading the answer
+
+```ts
+if (!response.ok) {
+  throw new Error(describeStatusWord(response.status)); // 'file or application not found'
+}
+```
+
+Also available: `encodeCommandApdu`, `decodeResponseApdu`, and the constants
+`SW_SUCCESS`, `CLA_CHAINING`, `SHORT_MAX_LC`, `SHORT_MAX_LE`, `EXTENDED_MAX_LC` and
+`EXTENDED_MAX_LE`.
+
+<Warning>
+  On iOS the AID you select must be declared in Info.plist or the tag never arrives at all — no
+  error, no event. See [ISO 7816 setup](/setup/iso7816).
+</Warning>
+
+  </Tab>
+  <Tab title="ISO 15693">
+
+Vicinity cards: ICODE SLIX, TI Tag-it, and the rest of the ISO 15693 family.
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+import { readSingleBlock, getSystemInformation } from 'react-native-nfc-kit/protocols';
+
+await nfc.withTag({ tech: ['iso15693'] }, async (tag) => {
+  if (!tag.is('iso15693')) throw new Error('Not an ISO 15693 tag');
+  const transport = (request: Uint8Array) => tag.transceive(request);
+
+  const info = await getSystemInformation(transport);
+  // { infoFlags, uid, dsfid, afi, blockCount, blockSize, icReference }
+
+  const block = await readSingleBlock(transport, 0);
+});
+```
+
+| Function                                             | What it does                                        |
+| ---------------------------------------------------- | --------------------------------------------------- |
+| `readSingleBlock(transport, block, options?)`        | One block                                           |
+| `readMultipleBlocks(transport, first, count, opts?)` | A run of blocks                                     |
+| `writeSingleBlock(transport, block, data, options?)` | One block                                           |
+| `lockBlock(transport, block, options?)`              | Irreversible                                        |
+| `getSystemInformation(transport, options?)`          | UID, block count, block size, AFI, DSFID            |
+| `customCommand(transport, command, options?)`        | Manufacturer commands, `0xA0`–`0xDF`                |
+| `sendRequest(transport, command, options?)`          | The primitive the rest are built on                 |
+| `buildRequest(command, options?)`                    | Bytes only, for when you want to send them yourself |
+| `parseResponse(response)`                            | Strips the flags and throws on an error code        |
+| `describeErrorCode(code)`                            | A sentence for an error byte                        |
+
+Request flags and command codes are namespaced, because `Command` and `RequestFlag`
+are names another protocol will want too:
+
+```ts
+import {
+  Iso15693Command,
+  Iso15693RequestFlag,
+  DEFAULT_FLAGS,
+} from 'react-native-nfc-kit/protocols';
+```
+
+<Note>
+  `blockCount` and `blockSize` come back `null` when the tag did not report them — `infoFlags` says
+  which optional fields were present. Inventing numbers there would move the failure to the read,
+  where it would look like something else.
+</Note>
+
+  </Tab>
+  <Tab title="FeliCa">
+
+Suica, PASMO, Octopus, and the rest of the FeliCa family.
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+import { polling, readWithoutEncryption } from 'react-native-nfc-kit/protocols';
+
+await nfc.withTag({ tech: ['felica'] }, async (tag) => {
+  if (!tag.is('felica')) throw new Error('Not a FeliCa card');
+  const transport = (packet: Uint8Array) => tag.transceive(packet);
+
+  const { idm, pmm } = await polling(transport, 0x12fc);
+
+  const blocks = await readWithoutEncryption(
+    transport,
+    idm,
+    [0x090f], // service codes
+    [{ block: 0 }, { block: 1 }, { block: 2 }],
+  );
+});
+```
+
+Every command takes the card's **IDm** explicitly, because that is what FeliCa
+addresses a card by. `polling` is how you obtain one when you do not already have it;
+on iOS, `tag.ios?.idm` carries it too.
+
+| Function                                                             | What it does                           |
+| -------------------------------------------------------------------- | -------------------------------------- |
+| `polling(transport, systemCode?, options?)`                          | IDm, PMm, and optional request data    |
+| `requestSystemCode(transport, idm)`                                  | Which systems the card carries         |
+| `readWithoutEncryption(transport, idm, serviceCodes, blocks)`        | Read blocks from unencrypted services  |
+| `writeWithoutEncryption(transport, idm, serviceCodes, blocks, data)` | Write them                             |
+| `buildPacket(...)` / `parsePacket(...)`                              | The framing, for a command not wrapped |
+
+A block is a `BlockDescriptor`: `{ block, serviceIndex?, accessMode? }`. The
+`serviceIndex` picks which entry of the service code list that block belongs to, and
+defaults to `0`.
+
+Also exported: `FelicaCommand`, `encodeBlockDescriptor`, `IDM_SIZE`,
+`FELICA_BLOCK_SIZE` and `FELICA_MAX_PACKET_SIZE`.
+
+<Warning>
+  On iOS a card whose system code is not declared in Info.plist never reaches the app. See [FeliCa
+  setup](/setup/felica).
+</Warning>
+
+  </Tab>
+  <Tab title="NTAG / Ultralight">
+
+NTAG21x and MIFARE Ultralight, page by page.
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+import { getVersion, readPages, writePage } from 'react-native-nfc-kit/protocols';
+
+await nfc.withTag({ tech: ['mifareUltralight'] }, async (tag) => {
+  if (!tag.is('mifareUltralight')) throw new Error('Not an Ultralight tag');
+  const transport = (command: Uint8Array) => tag.transceive(command);
+
+  const version = await getVersion(transport);
+  // { vendorId, productType, majorVersion, storageBytes, product: 'NTAG213', … }
+
+  const data = await readPages(transport, 4, 8);
+  await writePage(transport, 4, new Uint8Array([0x01, 0x02, 0x03, 0x04]));
+});
+```
+
+| Function                                        | Notes                                                   |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| `read(transport, page)`                         | The raw READ: 16 bytes, four pages, wrapping at the end |
+| `readPages(transport, startPage, pageCount)`    | Exactly the pages you asked for                         |
+| `fastRead(transport, startPage, endPage)`       | NTAG only, one command for a range                      |
+| `writePage(transport, page, data)`              | Four bytes                                              |
+| `compatibilityWritePage(transport, page, data)` | The 16-byte COMPATIBILITY_WRITE form                    |
+| `writePages(transport, startPage, data)`        | A whole run                                             |
+| `getVersion(transport)`                         | Product identification, with `product` named when known |
+| `readCounter(transport, counter?)`              | NFC counters `0`–`2`                                    |
+| `readSignature(transport)`                      | The 32-byte originality signature                       |
+| `passwordAuthenticate(transport, password)`     | Four-byte PWD, returns the PACK                         |
+| `storageBytesFor(storageSizeCode)`              | Decodes a GET_VERSION storage byte                      |
+
+Constants: `PAGE_SIZE`, `PAGES_PER_READ`, `READ_SIZE`, `PASSWORD_SIZE`, `PACK_SIZE`.
+
+<Warning>
+  **NTAG locks itself after a few failed password attempts.** `passwordAuthenticate` rejects with
+  `authenticationFailed`; do not retry it in a loop, and do not put it behind a "try all the keys"
+  helper.
+</Warning>
+
+  </Tab>
+</Tabs>
+
+## Namespaced access
+
+Each protocol is also exported as a namespace, for when a bare name would be
+ambiguous in your own code:
+
+```ts
+import { iso7816, iso15693, felica, ultralight } from 'react-native-nfc-kit/protocols';
+
+await iso7816.sendApdu(transport, iso7816.selectByName(aid));
+```
+
+## Without a device
+
+None of this needs a phone. A transport is a function, so a test is a function:
+
+```ts
+import { sendApdu, selectByName } from 'react-native-nfc-kit/protocols';
+import { fromHex } from 'react-native-nfc-kit/ndef';
+
+const card = async (apdu: Uint8Array) => fromHex('9000');
+
+const response = await sendApdu(card, selectByName(fromHex('A0000002471001')));
+expect(response.ok).toBe(true);
+```
+
+That is how these layers reach 100% branch coverage, and it is available to you for
+your own card logic too.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Card emulation" icon="credit-card" href="/setup/hce">
+    The other side of ISO 7816: answering a terminal.
+  </Card>
+  <Card title="Error reference" icon="triangle-exclamation" href="/errors">
+    `transceiveFailed`, `transceiveTooLong`, `authenticationFailed`.
+  </Card>
+</Columns>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 284 44" width="284" height="44" role="img" aria-label="react-native-nfc-kit">
+  <g transform="translate(3 8)">
+    <rect x="0.75" y="0.75" width="26.5" height="26.5" rx="7.5" fill="none" stroke="#2DD4BF" stroke-width="1.5"/>
+    <g fill="none" stroke="#2DD4BF" stroke-width="2" stroke-linecap="round">
+      <path d="M8 6.5 A 9 9 0 0 1 8 21.5"/>
+      <path d="M8 10.25 A 5.25 5.25 0 0 1 8 17.75"/>
+    </g>
+    <circle cx="8" cy="14" r="1.9" fill="#2DD4BF"/>
+  </g>
+  <text x="40" y="29" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="20" font-weight="700" letter-spacing="-0.4">
+    <tspan fill="#94A3B8">react-native-</tspan><tspan fill="#F8FAFC">nfc-kit</tspan>
+  </text>
+</svg>

@@ -1,6 +1,7 @@
 ---
-title: Error reference
-description: Every NfcErrorCode, what causes it, and what to do about it.
+title: 'Error reference'
+sidebarTitle: 'Errors'
+description: 'Every NfcErrorCode, what causes it, and what to do about it.'
 ---
 
 Every rejection from this library is an `NfcError` carrying a `code`. That is the
@@ -18,13 +19,30 @@ try {
 }
 ```
 
-`NfcError.is` brands on the error's `name`, not on `instanceof`, so it still works
-when two copies of the package end up in one bundle — which happens, and which
-breaks `instanceof` in a way that is very hard to see.
+<Warning>
+  `NfcError.is` brands on the error's `name`, not on `instanceof`, so it still works when two copies
+  of the package end up in one bundle — which happens, and which breaks `instanceof` in a way that
+  is very hard to see. **Always prefer it.**
+</Warning>
 
-Every error also carries `nativeCode` when the platform supplied one
-(`NFCReaderError:201`, `android.nfc.TagLostException`), `platform`, `cause`, and
-`recoverable` — whether moving the tag away and back is worth trying.
+Every error also carries these:
+
+<ResponseField name="code" type="NfcErrorCode">
+  The stable, branchable identifier. Every code on this page is one.
+</ResponseField>
+<ResponseField name="nativeCode" type="string | undefined">
+  What the platform supplied, when it supplied anything — `NFCReaderError:201`,
+  `android.nfc.TagLostException`. Worth logging; worth putting in a bug report.
+</ResponseField>
+<ResponseField name="platform" type="NfcPlatform">
+  `ios`, `android` or `web`.
+</ResponseField>
+<ResponseField name="cause" type="unknown">
+  The original throw, where there was one.
+</ResponseField>
+<ResponseField name="recoverable" type="boolean">
+  Whether moving the tag away and back is worth trying.
+</ResponseField>
 
 ## The four you should always handle
 
@@ -56,7 +74,7 @@ ordinary life:
 | `nfcUnsupported`     | No usable NFC. An iPhone 6s or earlier, an iPad, the Simulator, or an Android device with no controller.                                                                          | Check `nfc.isSupported()` before offering the feature. Nothing else helps.                                                                            |
 | `nfcDisabled`        | Android's NFC toggle is off.                                                                                                                                                      | `nfc.openSettings()`. iOS has no equivalent setting, so this never occurs there.                                                                      |
 | `noActivity`         | Android reader mode needs a foreground activity and there was none.                                                                                                               | Do not start a scan from a background task or before the activity is attached.                                                                        |
-| `entitlementMissing` | iOS refused the session for lack of an entitlement.                                                                                                                               | Check the reader-session format, and the AID or FeliCa system code declarations. See [setup](setup/overview).                                         |
+| `entitlementMissing` | iOS refused the session for lack of an entitlement.                                                                                                                               | Check the reader-session format, and the AID or FeliCa system code declarations. See [setup](/setup/overview).                                        |
 | `notAuthorized`      | The system refused the operation. On Android usually a tag dispatched to another app or a backgrounded activity; on the web a declined permission or a call with no user gesture. | Bring the app to the foreground; on the web, call from a click.                                                                                       |
 | `contractMismatch`   | The JavaScript bundle is newer than the installed native binary.                                                                                                                  | **Rebuild the development build.** This is the one error whose message tells you exactly that, because it is the commonest support question there is. |
 
@@ -89,11 +107,11 @@ ordinary life:
 
 ## Card emulation
 
-| Code                    | Cause                                                                            | Remedy                                                                                                                 |
-| ----------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `hceUnsupported`        | The controller does not implement host card emulation, or the AIDs were refused. | Check `nfc.capabilities.hce`. A refusal usually means the service is missing from the manifest — see [hce](setup/hce). |
-| `hceNotEligible`        | The platform declined to let this app emulate a card.                            | On iOS this is the entitlement and the region. On Android, another app may own the AID.                                |
-| `hceMaxDurationReached` | The platform ended an emulation session at its own limit.                        | Start another. Reserved for iOS `CardSession`, which is not offered by this library today.                             |
+| Code                    | Cause                                                                            | Remedy                                                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `hceUnsupported`        | The controller does not implement host card emulation, or the AIDs were refused. | Check `nfc.capabilities.hce`. A refusal usually means the service is missing from the manifest — see [card emulation setup](/setup/hce). |
+| `hceNotEligible`        | The platform declined to let this app emulate a card.                            | On iOS this is the entitlement and the region. On Android, another app may own the AID.                                                  |
+| `hceMaxDurationReached` | The platform ended an emulation session at its own limit.                        | Start another. Reserved for iOS `CardSession`, which is not offered by this library today.                                               |
 
 ## Programming errors
 
@@ -107,11 +125,25 @@ These mean the call was wrong, not that NFC failed. They should never reach a us
 
 ## Two distinctions worth internalising
 
-**`aborted` is not `userCancelled`.** The first is your `AbortSignal`; the second is
-the user dismissing the sheet. The library being replaced collapsed a user
-cancellation into "closed with no error", so the two could not be told apart — and
-an app cannot decide whether to show a message without knowing which happened.
+<AccordionGroup>
+  <Accordion title="aborted is not userCancelled" icon="hand" defaultOpen>
+    The first is your `AbortSignal`; the second is the user dismissing the sheet. The library being
+    replaced collapsed a user cancellation into "closed with no error", so the two could not be told
+    apart — and an app cannot decide whether to show a message without knowing which happened.
+  </Accordion>
+  <Accordion title="timeout is not sessionTimeout" icon="clock" defaultOpen>
+    The first is the deadline you set; the second is iOS's 60-second cap on a reader session, which
+    no library can extend. The remedy differs: raise your own, or split the work.
+  </Accordion>
+</AccordionGroup>
 
-**`timeout` is not `sessionTimeout`.** The first is the deadline you set; the second
-is iOS's 60-second cap on a reader session, which no library can extend. The remedy
-differs: raise your own, or split the work.
+## Next
+
+<Columns cols={2}>
+  <Card title="Sessions" icon="play" href="/concepts/sessions">
+    Where most of these codes come from, and the options that avoid them.
+  </Card>
+  <Card title="Setup" icon="wrench" href="/setup/overview">
+    Where `entitlementMissing`, `hceUnsupported` and `techUnavailable` get fixed.
+  </Card>
+</Columns>

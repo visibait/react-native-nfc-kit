@@ -1,20 +1,28 @@
 ---
-title: Device matrix
-description: A reproducible checklist for validating this library on a device, tag type or chipset.
+title: 'Device matrix'
+sidebarTitle: 'Device matrix'
+description: 'A reproducible checklist for validating this library on a device, tag type or chipset.'
 ---
 
-Mocks, simulators, emulators and compiler checks are never reported here as hardware
-validation. The test suite proves the bookkeeping; only a tag proves the radio.
+<Info>
+  Mocks, simulators, emulators and compiler checks are never reported here as hardware validation.
+  The test suite proves the bookkeeping; **only a tag proves the radio.**
+</Info>
 
 This page is the checklist for the radio half. The library was validated on the
 maintainer's own devices and tags before `1.0.0`; this grid is what makes that
 reproducible — and extendable, because no one person owns every chipset, OS version
 and tag type worth covering.
 
-**Use it for two things.** Before trusting a combination you have not tried, run the
-rows that apply. And when something misbehaves, find the row and quote it: a report
-saying "row 17 fails on a Pixel 6a, Android 15" can be acted on, where "NFC doesn't
-work" cannot.
+<CardGroup cols={2}>
+  <Card title="Before you trust a combination" icon="clipboard-check">
+    Run the rows that apply to the device, chipset and tag type you are shipping on.
+  </Card>
+  <Card title="When something misbehaves" icon="bug">
+    Find the row and quote it. "Row 17 fails on a Pixel 6a, Android 15" can be acted on; "NFC
+    doesn't work" cannot.
+  </Card>
+</CardGroup>
 
 ## How to use this
 
@@ -25,9 +33,10 @@ the version is the part people forget to write down.
 
 Legend: **✅ passed** · **❌ failed** · **⬜ not recorded here**
 
-The columns start empty on purpose. Rather than carry one person's results as though
-they were universal, this records only what has been reported against a named device
-and OS version.
+<Note>
+  The columns start empty on purpose. Rather than carry one person's results as though they were
+  universal, this records only what has been reported against a named device and OS version.
+</Note>
 
 ## Reading, both platforms
 
@@ -117,10 +126,11 @@ Procedure:
 4. Thirty times, open a session and background the app before closing it.
 5. Then read a tag normally.
 
-Passed when the thirtieth iteration behaves like the first, and step 5 still works.
-Failed if anything starts reporting `systemBusy`, if scanning stops starting, or if
-latency grows across iterations — all three are the signature of a session or
-listener that was not released.
+<Warning>
+  **Passed** when the thirtieth iteration behaves like the first, and step 5 still works. **Failed**
+  if anything starts reporting `systemBusy`, if scanning stops starting, or if latency grows across
+  iterations — all three are the signature of a session or listener that was not released.
+</Warning>
 
 | #   | Claim                            | Status iOS | Status Android |
 | --- | -------------------------------- | ---------- | -------------- |
@@ -147,3 +157,9 @@ Not every row is equally informative. If you are only going to run some:
 Rows 39 and 40 need an entitlement Apple grants case by case, and rows 30 to 33 need a
 terminal, so those stay thin until somebody who has one reports back. They are
 implemented and compile against the real frameworks; what they lack is a witness.
+
+<Note>
+  Reporting a result is a pull request against this page, or an issue quoting the row number, the
+  device, the OS version and the date. Both are equally welcome, and a failure is more useful than a
+  pass.
+</Note>
