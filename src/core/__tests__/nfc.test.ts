@@ -82,7 +82,7 @@ describe('capabilities', () => {
   it('exposes what this device can do, without a round trip', () => {
     expect(nfc.capabilities).toMatchObject({
       platform: 'android',
-      nativeTagLost: false,
+      tagLost: 'polled',
       perSessionConfig: false,
       hce: false,
       backgroundReading: true,
@@ -364,5 +364,34 @@ describe('onTag', () => {
 
     const session = await nfc.openSession({ tech: ['ndef'] });
     await session.close();
+  });
+});
+
+describe('background tags', () => {
+  it('answers null when no tag launched the app', async () => {
+    await expect(nfc.withLaunchTag(() => 'ran')).resolves.toBeNull();
+  });
+
+  it('hands the launch tag to the callback and releases it', async () => {
+    native.setLaunchTag(fakeTagInfo({ handleId: 'bg-1' }));
+
+    await expect(nfc.withLaunchTag((tag) => tag.idHex)).resolves.toBe('04a2b3c4d5e6f0');
+    expect(native.lastCallTo('releaseTag')?.args[0]).toBe('bg-1');
+  });
+
+  it('delivers tags dispatched while the app runs', async () => {
+    const listener = jest.fn();
+    const subscription = nfc.onBackgroundTag(listener);
+
+    native.emitBackgroundTag();
+    await flush();
+
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    subscription.remove();
+    native.emitBackgroundTag();
+    await flush();
+
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });

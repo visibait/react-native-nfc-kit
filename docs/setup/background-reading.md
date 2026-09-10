@@ -5,9 +5,43 @@ background**. Reader mode — `nfc.withTag`, `nfc.openSession`, `nfc.onTag` — 
 none of it, and adding it unnecessarily means unrelated tags start launching your
 app.
 
-> The JavaScript side of this (`nfc.getLaunchTag()`, `nfc.onBackgroundTag()`) lands
-> in M6. The configuration below is what the plugin writes today; the manifest is
-> correct now, and the API to consume it is not there yet.
+## Reading the tag
+
+Two entry points, because a tag that started the app and a tag that arrived while
+it was running are genuinely different situations.
+
+```ts
+// The app was not running and a tap started it. Safe to call on every launch:
+// it answers null when a tag was not the reason.
+const ticket = await nfc.withLaunchTag(async (tag) =>
+  tag.is('ndef') ? decodeMessage(await tag.readNdef()) : null,
+);
+
+// The app was in the background, or on another screen.
+const subscription = nfc.onBackgroundTag(async (tag) => {
+  if (tag.is('ndef')) await handle(await tag.readNdef());
+});
+```
+
+Both hand the tag to a callback and release it afterwards, the way `withTag`
+does. A native handle that outlives its scope is a leak whose failure surfaces
+somewhere else entirely, so there is no version of these that hands one out and
+trusts you to give it back.
+
+**`readNdef()` works; the radio usually does not.** By the time any JavaScript
+runs, the card has almost always left the field — the user tapped and pocketed
+it. What survives is the message the system read before dispatching the intent,
+which travelled with it, so reading NDEF still answers. Anything needing the
+radio (`transceive`, `writeNdef`, `getNdefStatus`) fails with `tagLost` unless the
+card genuinely is still there.
+
+`withLaunchTag` consumes the tag: a second call answers `null`. That is also what
+stops a screen rotation from replaying a tap from minutes ago, since the recreated
+activity is handed the same launch intent.
+
+`tag.onLost` never fires for a background tag. It is not being watched, because a
+watcher would do nothing but announce a departure that happened before the app was
+looking.
 
 ## Expo
 

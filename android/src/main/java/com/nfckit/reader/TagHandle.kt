@@ -29,9 +29,21 @@ import java.io.IOException
 internal class TagHandle(
   val id: String,
   private val tag: Tag,
+  /**
+   * The NDEF message the system already read, when this tag arrived in an intent.
+   *
+   * A background tag is usually gone by the time JavaScript gets to look at it:
+   * the system read it, dispatched the intent, and the user has already taken
+   * their card away. The message travelled with the intent, so it is still
+   * available even though the radio is not, and [readNdef] falls back to it.
+   */
+  private val dispatchedNdef: ByteArray? = null,
 ) {
   private var connectedTech: String? = null
   private var connection: TagTechnology? = null
+
+  @Volatile
+  private var closed = false
 
   /** Technologies this specific tag supports, as reported by the tag itself. */
   val techs: List<String> = TechRegistry.techsFor(tag)
@@ -133,12 +145,17 @@ internal class TagHandle(
   }
 
   fun close() {
+    closed = true
     closeConnection()
   }
 
+  /** Whether this handle is the tag the platform just told us about. */
+  fun matchesTagId(other: ByteArray): Boolean = tag.id.contentEquals(other)
+
   /** Whether the tag is still in the field. Used by the removal poller. */
   fun isPresent(): Boolean =
-    try {
+    if (closed) false
+    else try {
       connection?.isConnected ?: run {
         val probe = TechRegistry.adapterFor(techs.firstOrNull() ?: return false).create(tag)
         probe?.connect()
@@ -181,9 +198,17 @@ internal class TagHandle(
    * as a failure would make every blank tag look broken.
    */
   fun readNdef(): ByteArray =
-    withTech("ndef") { handle ->
-      val ndef = handle as Ndef
-      ndef.ndefMessage?.toByteArray() ?: ByteArray(0)
+    try {
+      withTech("ndef") { handle ->
+        val ndef = handle as Ndef
+        ndef.ndefMessage?.toByteArray() ?: ByteArray(0)
+      }
+    } catch (cause: NfcException) {
+      // Only ever non-null for a tag that arrived in an intent, so a session tag
+      // still reports its failure. For a background tag, the message the system
+      // already read is the better answer than an error about a card the user
+      // put back in their pocket a second ago.
+      dispatchedNdef ?: throw cause
     }
 
   fun writeNdef(bytes: ByteArray) {

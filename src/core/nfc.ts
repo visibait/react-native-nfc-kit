@@ -13,9 +13,19 @@
  */
 
 import { NfcError, type NfcPlatform } from '../errors.js';
-import { isTagTech, type NativeCapabilities, type TagTech } from '../native/contract.js';
+import {
+  isTagTech,
+  type NativeCapabilities,
+  type TagLostReporting,
+  type TagTech,
+} from '../native/contract.js';
 import { callNative } from '../native/errors.js';
 import { getNativeModule, platform, tryGetNativeModule } from '../native/module.js';
+import {
+  onBackgroundTag as onBackgroundTagWith,
+  withLaunchTag as withLaunchTagWith,
+  type BackgroundTagOptions,
+} from './background.js';
 import { Listeners, type Subscription } from './subscription.js';
 import {
   openSession as openSessionWith,
@@ -43,12 +53,13 @@ export interface NfcCapabilities {
   /** Technologies reachable here. Chipset-dependent on Android. */
   readonly techs: readonly TagTech[];
   /**
-   * Whether tag removal is delivered by the platform.
+   * How tag removal reaches `tag.onLost`.
    *
-   * Android API 37 and later report it; below that `tag.onLost` is driven by
-   * polling, so it fires later. iOS does not report it at all.
+   * `none` on iOS, where CoreNFC has no removal callback at all. `polled` or
+   * `native` on Android, which differ only in latency: a poll interval against
+   * effectively none.
    */
-  readonly nativeTagLost: boolean;
+  readonly tagLost: TagLostReporting;
   /** iOS 26.4 and later can narrow AIDs and FeliCa system codes per session. */
   readonly perSessionConfig: boolean;
   readonly hce: boolean;
@@ -72,7 +83,7 @@ function toCapabilities(native: NativeCapabilities): NfcCapabilities {
     // A native binary newer than this bundle may report a technology with no
     // capability type here; dropping it beats surfacing a name no guard matches.
     techs: native.techs.filter(isTagTech),
-    nativeTagLost: native.nativeTagLost,
+    tagLost: native.tagLost,
     perSessionConfig: native.perSessionConfig,
     hce: native.hce,
     backgroundReading: native.backgroundReading,
@@ -331,5 +342,42 @@ export const nfc = {
         });
       },
     };
+  },
+
+  /* ── Background tags ───────────────────────────────────────────────────── */
+
+  /**
+   * Runs `work` with the tag that launched the app, if one did.
+   *
+   * ```ts
+   * const ticket = await nfc.withLaunchTag(async (tag) =>
+   *   tag.is('ndef') ? decodeMessage(await tag.readNdef()) : null,
+   * );
+   * ```
+   *
+   * Resolves to `null` on a normal launch, so it is safe to call unconditionally
+   * on startup. The tag is consumed: a second call answers `null`, which is also
+   * what stops a screen rotation from replaying a tap from minutes ago.
+   *
+   * Android only in practice, and it needs intent filters in the manifest --
+   * see `docs/setup/background-reading.md`. On iOS the system reads background
+   * NDEF tags itself without involving the app, so this is always `null` there.
+   */
+  withLaunchTag<T>(work: (tag: Tag) => Promise<T> | T): Promise<T | null> {
+    return withLaunchTagWith(deps(), work);
+  },
+
+  /**
+   * Delivers tags the system dispatches while the app is running.
+   *
+   * For a tag tapped while the app is in the background or on another screen.
+   * Reader mode -- `withTag`, `openSession`, `onTag` -- does not come through
+   * here, and needs none of the manifest configuration this does.
+   */
+  onBackgroundTag(
+    listener: (tag: Tag) => void | Promise<void>,
+    options?: BackgroundTagOptions,
+  ): Subscription {
+    return onBackgroundTagWith(deps(), listener, options);
   },
 };

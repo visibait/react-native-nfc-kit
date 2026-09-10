@@ -37,7 +37,7 @@
  *
  * Bumping this is a minor release, and the changelog marks it.
  */
-export const CONTRACT_VERSION = 1;
+export const CONTRACT_VERSION = 2;
 
 /** Native module name, as registered by both platforms. */
 export const NATIVE_MODULE_NAME = 'NfcKit';
@@ -129,14 +129,30 @@ export interface NativeNdefStatus {
   readonly typeName: string | null;
 }
 
+export const TAG_LOST_REPORTING = ['none', 'polled', 'native'] as const;
+
+export type TagLostReporting = (typeof TAG_LOST_REPORTING)[number];
+
 /** What native reports it can actually do on this device and OS version. */
 export interface NativeCapabilities {
   readonly platform: 'ios' | 'android';
   readonly osVersion: string;
   /** Technologies reachable on this device. Chipset-dependent on Android. */
   readonly techs: readonly string[];
-  /** Android API 37+ delivers tag removal; below that it is polled. */
-  readonly nativeTagLost: boolean;
+  /**
+   * How tag removal reaches `tag.onLost`.
+   *
+   * - `none` -- not reported at all. CoreNFC has no removal callback, so a tag
+   *   leaving the field on iOS surfaces as the next operation failing.
+   * - `polled` -- reported by polling the tag's presence, so removal is noticed
+   *   within roughly the poll interval rather than immediately.
+   * - `native` -- the platform reports it directly.
+   *
+   * A three-state value rather than a boolean because both halves matter and a
+   * boolean can only carry one of them: whether removal is reported at all, and
+   * whether the latency is a poll interval or nothing.
+   */
+  readonly tagLost: TagLostReporting;
   /** iOS 26.4+ narrows AIDs and FeliCa system codes per session. */
   readonly perSessionConfig: boolean;
   readonly hce: boolean;
@@ -207,8 +223,21 @@ export interface NativeAvailabilityEvent {
   readonly enabled: boolean;
 }
 
+/**
+ * A tag that arrived through an intent rather than through a reading session.
+ *
+ * Deliberately its own event rather than `onTagDiscovered` with a made-up
+ * session id: a background tag has no session, no `tech` filter behind it and a
+ * lifetime the app did not choose, and papering over that would make the two
+ * indistinguishable in exactly the cases where the difference matters.
+ */
+export interface NativeBackgroundTagEvent {
+  readonly tag: NativeTagInfo;
+}
+
 export interface NativeEventMap {
   readonly onTagDiscovered: (event: NativeTagDiscoveredEvent) => void;
+  readonly onBackgroundTag: (event: NativeBackgroundTagEvent) => void;
   readonly onTagLost: (event: NativeTagLostEvent) => void;
   readonly onSessionInvalidated: (event: NativeSessionInvalidatedEvent) => void;
   readonly onAvailabilityChanged: (event: NativeAvailabilityEvent) => void;
@@ -218,6 +247,7 @@ export type NativeEventName = keyof NativeEventMap;
 
 export const NATIVE_EVENT_NAMES = [
   'onTagDiscovered',
+  'onBackgroundTag',
   'onTagLost',
   'onSessionInvalidated',
   'onAvailabilityChanged',

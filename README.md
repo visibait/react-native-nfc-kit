@@ -84,6 +84,21 @@ Reading and writing tags works on both platforms, with the protocol layers
 (`react-native-nfc-kit/protocols`) on top: ISO 7816 with command chaining and
 `61xx`/`6Cxx` handling, ISO 15693, FeliCa, and NTAG/Ultralight.
 
+Android also reports when a tag leaves the field (`tag.onLost`) and delivers tags
+that arrive through an intent — the tap that launched the app, or one that came in
+while it was running:
+
+```ts
+const ticket = await nfc.withLaunchTag(async (tag) =>
+  tag.is('ndef') ? decodeMessage(await tag.readNdef()) : null,
+);
+```
+
+See [docs/setup/background-reading.md](docs/setup/background-reading.md). iOS does
+neither: CoreNFC has no removal callback, and background NDEF reading happens
+entirely inside the system without the app being handed the tag. `nfc.capabilities`
+says which of these the device you are on actually does.
+
 ### React hooks
 
 `react-native-nfc-kit/react` is a separate subpath, so the core API never imports
@@ -176,6 +191,7 @@ Nothing here is claimed to work because it looks right.
 | iOS                   | `pod install` and `xcodebuild` on a macOS runner against real CoreNFC; `npm run check:swift` gives a local syntax check anywhere       |
 | Protocol layers       | 247 unit tests, 100% branch coverage: ISO 7816 chaining and `61xx`/`6Cxx`, ISO 15693, FeliCa, NTAG/Ultralight                          |
 | React hooks           | 26 tests through `renderHook`, including the unmount races: a scan cancelled by navigating away, an answer arriving after unmount      |
+| Background tags       | Tested against the fake native module: the launch tag is consumed once, every tag is released even when its handler throws             |
 | Config plugin         | 104 tests through Expo's own introspection compiler, so the assertions are about what `expo prebuild` produces                         |
 | The published package | `publint` and `arethetypeswrong` against a packed tarball, so a broken `exports` map fails before a user finds it                      |
 

@@ -182,16 +182,16 @@ export const __nfcKitMock = {
 /* The mocked native surface                                                  */
 /* -------------------------------------------------------------------------- */
 
-export const contractVersion = 1;
+export const contractVersion = 2;
 
 export const capabilities = {
   platform: 'android',
   osVersion: 'mock',
   techs: DEFAULT_TECHS,
-  nativeTagLost: false,
+  tagLost: 'polled',
   perSessionConfig: false,
   hce: false,
-  backgroundReading: false,
+  backgroundReading: true,
 };
 
 export function addListener(event: string, listener: Listener): { remove(): void } {

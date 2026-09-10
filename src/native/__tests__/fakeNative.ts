@@ -13,6 +13,7 @@
 
 import type {
   NativeAvailabilityEvent,
+  NativeBackgroundTagEvent,
   NativeCapabilities,
   NativeEventMap,
   NativeEventName,
@@ -41,7 +42,7 @@ const DEFAULT_CAPABILITIES: NativeCapabilities = {
   platform: 'android',
   osVersion: '15',
   techs: ['ndef', 'ndefFormatable', 'isoDep', 'nfcA', 'nfcB', 'mifareClassic', 'mifareUltralight'],
-  nativeTagLost: false,
+  tagLost: 'polled',
   perSessionConfig: false,
   hce: false,
   backgroundReading: true,
@@ -172,6 +173,21 @@ export class FakeNativeModule implements NativeNfcKitModule {
     this.emit('onSessionInvalidated', { sessionId, error } satisfies NativeSessionInvalidatedEvent);
   }
 
+  emitBackgroundTag(tag: NativeTagInfo = fakeTagInfo({ handleId: 'bg-1' })): void {
+    this.emit('onBackgroundTag', { tag } satisfies NativeBackgroundTagEvent);
+  }
+
+  /**
+   * Makes `takeLaunchTag` answer once, the way the platform does.
+   *
+   * Consuming it here rather than returning the same tag forever is the point:
+   * a launch tag that could be taken twice would let a test pass while the real
+   * module replayed a tap after every screen rotation.
+   */
+  setLaunchTag(tag: NativeTagInfo | null): void {
+    this.launchTag = tag;
+  }
+
   emitAvailabilityChanged(supported: boolean, enabled: boolean): void {
     this.emit('onAvailabilityChanged', { supported, enabled } satisfies NativeAvailabilityEvent);
   }
@@ -286,6 +302,8 @@ export class FakeNativeModule implements NativeNfcKitModule {
   }
 
   takeLaunchTag(): Promise<NativeTagInfo | null> {
-    return this.record('takeLaunchTag', [], this.launchTag);
+    const tag = this.launchTag;
+    this.launchTag = null;
+    return this.record('takeLaunchTag', [], tag);
   }
 }

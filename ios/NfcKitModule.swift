@@ -3,7 +3,7 @@ import UIKit
 @preconcurrency import CoreNFC
 
 /// Bumped together with `CONTRACT_VERSION` in `src/native/contract.ts`.
-private let contractVersion = 1
+private let contractVersion = 2
 
 /// Mirrors `NativeSessionOptions`. The Android fields are accepted and ignored.
 internal struct SessionOptions: Record {
@@ -98,8 +98,9 @@ public final class NfcKitModule: Module, @unchecked Sendable {
         // makes tag.is('mifareClassic') honestly false rather than a method that
         // exists and then fails.
         "techs": ["ndef", "isoDep", "iso15693", "felica", "mifareUltralight"],
-        // iOS reports no tag-removal callback at all.
-        "nativeTagLost": false,
+        // CoreNFC has no tag-removal callback at any iOS version, so a card that
+        // has gone is only discovered by the next operation failing.
+        "tagLost": "none",
         // iOS 26.4 can narrow AIDs and FeliCa system codes per session. Adopting
         // it needs a build SDK that has NFCTagReaderSession.Configuration, so this
         // stays false until that lands rather than implying narrowing that does
@@ -110,7 +111,13 @@ public final class NfcKitModule: Module, @unchecked Sendable {
       ] as [String: Any]
     }
 
-    Events("onTagDiscovered", "onTagLost", "onSessionInvalidated", "onAvailabilityChanged")
+    Events(
+      "onTagDiscovered",
+      "onBackgroundTag",
+      "onTagLost",
+      "onSessionInvalidated",
+      "onAvailabilityChanged"
+    )
 
     /* -- Availability ---------------------------------------------------- */
 
@@ -227,8 +234,11 @@ public final class NfcKitModule: Module, @unchecked Sendable {
     }
 
     AsyncFunction("takeLaunchTag") { () -> [String: Any]? in
-      // Background NDEF hand-off lands in a later milestone. Reporting nil is
-      // accurate today; inventing a tag would not be.
+      // Always nil, and this is the final answer rather than a placeholder. iOS
+      // reads NDEF tags in the background itself, without involving the app: a
+      // URI record opens its link, which reaches the app as a universal link if
+      // the domain is yours. There is no CoreNFC surface that hands the app the
+      // tag, so nothing here could return one.
       nil
     }
 

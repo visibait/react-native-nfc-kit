@@ -223,9 +223,11 @@ export interface TagBase {
   /**
    * Called when the tag leaves the field.
    *
-   * Android API 37 and later deliver this from the platform; below that it is
-   * polled, so the latency differs. `capabilities.nativeTagLost` says which.
-   * iOS does not report tag removal at all, so this never fires there.
+   * Android reports removal; `capabilities.tagLost` says whether the platform
+   * delivers it directly or it is polled, which is a difference of latency only.
+   * iOS has no removal callback in CoreNFC at all, so this never fires there and
+   * `capabilities.tagLost` is `none` -- a tag that has gone surfaces as the next
+   * operation failing with `tagLost`.
    */
   onLost(listener: () => void): Subscription;
 }

@@ -31,6 +31,8 @@
 export { nfc } from './core/nfc.js';
 export type { NfcAvailability, NfcCapabilities, TagStreamOptions } from './core/nfc.js';
 
+export type { BackgroundTagOptions } from './core/background.js';
+
 export type {
   AndroidScanOptions,
   IosScanOptions,
@@ -60,8 +62,8 @@ export type {
   TransceiveCapability,
 } from './core/tag.js';
 
-export { TAG_TECH_NAMES, isTagTech } from './native/contract.js';
-export type { TagTech } from './native/contract.js';
+export { TAG_TECH_NAMES, TAG_LOST_REPORTING, isTagTech } from './native/contract.js';
+export type { TagLostReporting, TagTech } from './native/contract.js';
 
 /* -------------------------------------------------------------------------- */
 /* Errors and subscriptions                                                   */

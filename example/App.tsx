@@ -131,9 +131,10 @@ export default function App() {
             value={`${Platform.OS} ${availability?.capabilities?.osVersion ?? ''}`}
           />
           <Row label="Technologies" value={availability?.capabilities?.techs.join(', ') ?? '…'} />
+          <Row label="Tag removal" value={availability?.capabilities?.tagLost ?? '…'} />
           <Row
-            label="Tag removal events"
-            value={String(availability?.capabilities?.nativeTagLost ?? '…')}
+            label="Background tags"
+            value={String(availability?.capabilities?.backgroundReading ?? '…')}
           />
         </Section>
 
