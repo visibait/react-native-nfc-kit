@@ -135,6 +135,56 @@ jobs:
           grep -q 'com.nfckit.NfcKitModule' "$list"
           echo "NfcKitModule is registered in the generated Expo modules list."
 
+  ios:
+    name: iOS build
+    # The authoritative iOS check. Swift can be syntax-checked anywhere -- see
+    # `npm run check:swift` -- but only a Mac has CoreNFC and the real
+    # ExpoModulesCore, so type errors and API misuse surface here and nowhere
+    # else. A contributor without a Mac relies on this job.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install and build the library
+        run: npm ci --ignore-scripts && npm run build
+
+      - name: Swift syntax check
+        run: npm run check:swift
+
+      - name: Install the example app
+        working-directory: example
+        run: npm install --no-audit --no-fund
+
+      - name: Prebuild (runs the config plugin)
+        working-directory: example
+        run: npx expo prebuild -p ios --clean
+        env:
+          EXPO_NO_TELEMETRY: '1'
+
+      - name: Check the plugin wrote the entitlements and usage description
+        working-directory: example
+        run: |
+          set -e
+          entitlements=$(find ios -name '*.entitlements' | head -1)
+          plist=$(find ios -name 'Info.plist' -not -path '*/Pods/*' | head -1)
+          grep -q 'com.apple.developer.nfc.readersession.formats' "$entitlements"
+          grep -q 'TAG' "$entitlements"
+          grep -q 'NFCReaderUsageDescription' "$plist"
+          echo "Entitlements carry the reader-session format and Info.plist has a usage description."
+
+      - name: Pod install
+        working-directory: example/ios
+        run: pod install
+
+      - name: Build for a device
+        working-directory: example/ios
+        run: |
+          xcodebuild             -workspace example.xcworkspace             -scheme example             -configuration Debug             -sdk iphoneos             -destination 'generic/platform=iOS'             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             build | tail -40
+
   example-types:
     name: Example app typecheck
     runs-on: ubuntu-latest

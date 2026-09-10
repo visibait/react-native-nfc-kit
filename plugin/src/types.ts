@@ -29,7 +29,13 @@ export interface NfcKitPluginProps {
      * - `'tag'` — required by `NFCTagReaderSession`, i.e. anything low level:
      *   ISO 7816 APDUs, ISO 15693, FeliCa, MIFARE.
      *
-     * Defaults to `['ndef']`.
+     * Defaults to `['tag']`, because that is what this library's iOS
+     * implementation uses: it drives every technology, NDEF included, through
+     * `NFCTagReaderSession`. A default of `'ndef'` would read as narrower and
+     * simply not work.
+     *
+     * A dedicated `NFCNDEFReaderSession` path, which would allow the narrower
+     * `NDEF` format for apps that only read NDEF, is a planned addition.
      */
     formats?: readonly ('ndef' | 'tag')[];
   };
@@ -58,7 +64,7 @@ export const DEFAULT_READER_USAGE_DESCRIPTION = 'Hold your device near an NFC ta
 export function resolveProps(props: NfcKitPluginProps | undefined): ResolvedNfcKitProps {
   return {
     readerUsageDescription: props?.readerUsageDescription ?? DEFAULT_READER_USAGE_DESCRIPTION,
-    ios: { formats: props?.ios?.formats ?? ['ndef'] },
+    ios: { formats: props?.ios?.formats ?? ['tag'] },
     android: { requireNfcHardware: props?.android?.requireNfcHardware ?? false },
   };
 }

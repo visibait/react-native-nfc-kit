@@ -61,7 +61,8 @@
     "verify:package": "npm run build && npm pack --silent --pack-destination .tmp && publint .tmp/*.tgz && attw .tmp/*.tgz",
     "prepare": "npm run build",
     "open:ios": "node internal/module_scripts/open-ios.js",
-    "open:android": "node internal/module_scripts/open-android.js"
+    "open:android": "node internal/module_scripts/open-android.js",
+    "check:swift": "node internal/module_scripts/check-swift.js"
   },
   "keywords": [
     "react-native",
