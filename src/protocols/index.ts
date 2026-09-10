@@ -93,3 +93,47 @@ export type {
   SendApduChainedOptions,
   SendApduOptions,
 } from './iso7816.js';
+
+/* -------------------------------------------------------------------------- */
+/* FeliCa                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export {
+  BLOCK_SIZE as FELICA_BLOCK_SIZE,
+  IDM_SIZE,
+  MAX_PACKET_SIZE as FELICA_MAX_PACKET_SIZE,
+  FelicaCommand,
+  buildPacket,
+  encodeBlockDescriptor,
+  parsePacket,
+  polling,
+  readWithoutEncryption,
+  requestSystemCode,
+  writeWithoutEncryption,
+} from './felica.js';
+
+export type { BlockDescriptor, FelicaResponse, FelicaTransport, PollingResult } from './felica.js';
+
+/* -------------------------------------------------------------------------- */
+/* Namespaced access                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Every protocol is also reachable under its own name.
+ *
+ * The flat exports above cover the common cases, but protocols share vocabulary:
+ * `read`, `sendCommand`, `buildRequest` and `Command` all mean something in more
+ * than one of them. The namespaces avoid having to rename things to keep the flat
+ * surface unambiguous, and read better when a file works with one protocol
+ * throughout:
+ *
+ * ```ts
+ * import { felica } from 'react-native-nfc-kit/protocols';
+ *
+ * const blocks = await felica.readWithoutEncryption(transport, idm, [0x090f], [{ block: 0 }]);
+ * ```
+ */
+export * as iso7816 from './iso7816.js';
+export * as ultralight from './ultralight.js';
+export * as iso15693 from './iso15693.js';
+export * as felica from './felica.js';
