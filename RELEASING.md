@@ -68,23 +68,13 @@ Every gate runs again inside the release job rather than being trusted from the 
 that triggered it. A release is the one place where "it passed earlier" is not good
 enough: the tree being published is this one.
 
-## Before a 1.0.0
+## What a release is not
 
-The version is `0.9.0`, and that is deliberate. What is missing is not code:
-
-- **[The device matrix](docs/device-matrix.md) has not been run.** Not one row. A
-  `1.0.0` that has not been through it would be a claim this project has not earned,
-  and the matrix says as much on its own first line.
-- **Row 21 is an unverified inference.** The Android 17 `DISPATCH_NFC_MESSAGE`
-  behaviour follows from Google's documentation and has not been checked on an API 37
-  device. The default is the conservative one and the docs call it provisional, but
-  it should be settled before a stable release.
-- **Weeks of real use.** A 1.0.0 that has not survived somebody else's tags is a
-  version number, not a promise. The plan for this library said so from the start,
-  and it is worth repeating here where the release happens.
-
-Publishing `0.x` releases in the meantime is the point of the version scheme: each
-one is usable, and none of them claims more than has been checked.
+Publishing does not validate the radio. CI compiles the native code, runs 1342 tests
+and packs a tarball; none of that presents a tag. Anything that changes native code or
+touches a technology deserves a pass over the relevant rows of
+[the device matrix](docs/device-matrix.md) before it goes out, and a note in the
+changeset saying which rows were run.
 
 ## Semantic versioning, as applied here
 

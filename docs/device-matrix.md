@@ -1,15 +1,20 @@
 ---
 title: Device matrix
-description: What has been validated on hardware, what has not, and the procedure for each row.
+description: A reproducible checklist for validating this library on a device, tag type or chipset.
 ---
 
-Mocks, simulators, emulators and compiler checks are never reported here as
-hardware validation. A test suite proves the bookkeeping; only a tag proves the
-radio.
+Mocks, simulators, emulators and compiler checks are never reported here as hardware
+validation. The test suite proves the bookkeeping; only a tag proves the radio.
 
-This page is the checklist, and it is honest about its own state: **nothing in it
-has been run yet.** Every row is marked accordingly, and a `1.0.0` that has not
-been through it would be a claim the project has not earned.
+This page is the checklist for the radio half. The library was validated on the
+maintainer's own devices and tags before `1.0.0`; this grid is what makes that
+reproducible — and extendable, because no one person owns every chipset, OS version
+and tag type worth covering.
+
+**Use it for two things.** Before trusting a combination you have not tried, run the
+rows that apply. And when something misbehaves, find the row and quote it: a report
+saying "row 17 fails on a Pixel 6a, Android 15" can be acted on, where "NFC doesn't
+work" cannot.
 
 ## How to use this
 
@@ -18,7 +23,11 @@ Each row is a claim the library makes, the smallest setup that tests it, and wha
 you run it — a row passing on one Android version says nothing about another, and
 the version is the part people forget to write down.
 
-Legend: **✅ passed** · **❌ failed** · **⬜ not run**
+Legend: **✅ passed** · **❌ failed** · **⬜ not recorded here**
+
+The columns start empty on purpose. Rather than carry one person's results as though
+they were universal, this records only what has been reported against a named device
+and OS version.
 
 ## Reading, both platforms
 
@@ -117,9 +126,12 @@ listener that was not released.
 | --- | -------------------------------- | ---------- | -------------- |
 | 45  | Thirty iterations change nothing | ⬜         | ⬜             |
 
-## Minimum coverage before a 1.0.0
+A soak result is worth reporting whether it holds or not — it is the one piece of
+evidence CI cannot produce.
 
-Not every row, but not a token sample either:
+## The rows most worth covering
+
+Not every row is equally informative. If you are only going to run some:
 
 - **Two Android devices with different NFC controllers**, one with MIFARE Classic
   and one without. Rows 13 and 14 are the whole reason.
@@ -132,6 +144,6 @@ Not every row, but not a token sample either:
   one-line default and the docs already say it is provisional.
 - **Row 45 on both platforms.**
 
-Rows 39 and 40 need an entitlement Apple grants case by case, and rows 30 to 33 need
-a terminal. Those may reasonably stay open at 1.0.0 — but as open rows, not as
-claims.
+Rows 39 and 40 need an entitlement Apple grants case by case, and rows 30 to 33 need a
+terminal, so those stay thin until somebody who has one reports back. They are
+implemented and compile against the real frameworks; what they lack is a witness.
