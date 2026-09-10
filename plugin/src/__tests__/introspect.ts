@@ -24,6 +24,8 @@ export interface IntrospectionResult {
   readonly mainActivity: ActivityWithMetaData;
   readonly infoPlist: Record<string, unknown>;
   readonly entitlements: Record<string, unknown>;
+  /** `res/values/strings.xml` items, which the HCE resource references. */
+  readonly strings: readonly AndroidConfig.Resources.ResourceItemXML[];
 }
 
 type BaseConfig = Partial<ExportedConfig> & Pick<ExportedConfig, 'name' | 'slug'>;
@@ -61,11 +63,15 @@ export async function introspectAsync(
       (activity) => activity.$['android:name'] === '.MainActivity',
     ) as ActivityWithMetaData;
 
+    const strings = results?.android?.strings as
+      { resources?: { string?: AndroidConfig.Resources.ResourceItemXML[] } } | undefined;
+
     return {
       manifest,
       mainActivity,
       infoPlist: (results?.ios?.infoPlist ?? {}) as Record<string, unknown>,
       entitlements: (results?.ios?.entitlements ?? {}) as Record<string, unknown>,
+      strings: strings?.resources?.string ?? [],
     };
   } finally {
     fs.rmSync(projectRoot, { recursive: true, force: true });

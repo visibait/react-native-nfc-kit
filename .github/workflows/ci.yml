@@ -132,6 +132,14 @@ jobs:
           techFilter=android/app/src/main/res/xml/nfc_kit_tech_filter.xml
           grep -q 'android.nfc.tech.IsoDep' "$techFilter"
           grep -q 'android.nfc.tech.MifareUltralight' "$techFilter"
+          # Card emulation: the service, the resource it points at, and the string
+          # the resource references. A missing string is a build failure whose
+          # message is about a symbol rather than about NFC.
+          grep -q 'com.nfckit.hce.NfcKitHostApduService' "$manifest"
+          grep -q 'android.permission.BIND_NFC_SERVICE' "$manifest"
+          apduService=android/app/src/main/res/xml/nfc_kit_apduservice.xml
+          grep -q 'android:name="F0010203040506"' "$apduService"
+          grep -q 'nfc_kit_hce_description' android/app/src/main/res/values/strings.xml
           echo "AndroidManifest and the generated tech filter contain what the plugin should have written."
 
       - name: Compile the Kotlin module

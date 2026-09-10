@@ -4,10 +4,10 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 
 /**
  * Boundary rule, enforced by the linter rather than by convention: the pure
- * layers must stay pure. `src/ndef` and `src/protocols` are plain TypeScript
- * over `Uint8Array`, which is what makes them testable at 100% coverage with no
- * native module and no simulator. An accidental `react-native` import there
- * would silently take that away.
+ * layers must stay pure. `src/ndef`, `src/protocols` and the card side of
+ * `src/hce` are plain TypeScript over `Uint8Array`, which is what makes them
+ * testable at 100% coverage with no native module and no simulator. An accidental
+ * `react-native` import there would silently take that away.
  */
 const PURE_LAYER_RESTRICTIONS: Linter.RulesRecord = {
   'no-restricted-imports': [
@@ -77,7 +77,9 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/ndef/**/*.ts', 'src/protocols/**/*.ts'],
+    // `src/hce/session.ts` and its barrel legitimately reach the native module;
+    // the two files named here are the card itself and must not.
+    files: ['src/ndef/**/*.ts', 'src/protocols/**/*.ts', 'src/hce/apdu.ts', 'src/hce/type4.ts'],
     rules: PURE_LAYER_RESTRICTIONS,
   },
   {

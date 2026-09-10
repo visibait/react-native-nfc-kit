@@ -14,6 +14,9 @@
 import type {
   NativeAvailabilityEvent,
   NativeBackgroundTagEvent,
+  NativeHceCommandEvent,
+  NativeHceDeactivatedEvent,
+  NativeHceOptions,
   NativeCapabilities,
   NativeEventMap,
   NativeEventName,
@@ -188,6 +191,31 @@ export class FakeNativeModule implements NativeNfcKitModule {
     this.launchTag = tag;
   }
 
+  /**
+   * Delivers a command APDU as the platform would, and records the answer.
+   *
+   * Returns the request id so a test can assert what went back to the terminal,
+   * which is the only thing that actually matters about a card.
+   */
+  emitHceCommand(command: Uint8Array): string {
+    const requestId = `hce-${this.hceCommands.length + 1}`;
+    this.hceCommands.push(requestId);
+    this.emit('onHceCommand', {
+      requestId,
+      commandHex: [...command].map((byte) => byte.toString(16).padStart(2, '0')).join(''),
+    } satisfies NativeHceCommandEvent);
+    return requestId;
+  }
+
+  emitHceDeactivated(reason: 'linkLoss' | 'deselected' = 'linkLoss'): void {
+    this.emit('onHceDeactivated', { reason } satisfies NativeHceDeactivatedEvent);
+  }
+
+  /** What was sent back for a command, or undefined if nothing was. */
+  hceResponseTo(requestId: string): Uint8Array | undefined {
+    return this.hceResponses.get(requestId);
+  }
+
   emitAvailabilityChanged(supported: boolean, enabled: boolean): void {
     this.emit('onAvailabilityChanged', { supported, enabled } satisfies NativeAvailabilityEvent);
   }
@@ -299,6 +327,39 @@ export class FakeNativeModule implements NativeNfcKitModule {
 
   getTechTimeout(handleId: string, tech: string): Promise<number> {
     return this.record('getTechTimeout', [handleId, tech], this.techTimeout);
+  }
+
+  /* -- Card emulation ---------------------------------------------------- */
+
+  hceSupported = true;
+  hceStarted = false;
+  hceOptions: NativeHceOptions | null = null;
+  readonly hceCommands: string[] = [];
+  readonly hceResponses = new Map<string, Uint8Array>();
+  /** Request ids the fake refuses to answer, standing in for a lost link. */
+  readonly hceExpired = new Set<string>();
+
+  isHceSupported(): Promise<boolean> {
+    return this.record('isHceSupported', [], this.hceSupported);
+  }
+
+  startHce(options: NativeHceOptions): Promise<void> {
+    this.hceStarted = true;
+    this.hceOptions = options;
+    return this.record('startHce', [options], undefined);
+  }
+
+  stopHce(): Promise<void> {
+    this.hceStarted = false;
+    return this.record('stopHce', [], undefined);
+  }
+
+  respondToHce(requestId: string, response: Uint8Array): Promise<boolean> {
+    const accepted = !this.hceExpired.has(requestId);
+    if (accepted) {
+      this.hceResponses.set(requestId, response);
+    }
+    return this.record('respondToHce', [requestId, response], accepted);
   }
 
   takeLaunchTag(): Promise<NativeTagInfo | null> {

@@ -36,6 +36,9 @@ object NfcErrorCode {
   const val NDEF_CAPACITY_EXCEEDED = "ndefCapacityExceeded"
   const val NDEF_MALFORMED = "ndefMalformed"
 
+  const val HCE_UNSUPPORTED = "hceUnsupported"
+  const val HCE_NOT_ELIGIBLE = "hceNotEligible"
+
   const val INVALID_ARGUMENT = "invalidArgument"
   const val UNSUPPORTED_PLATFORM = "unsupportedPlatform"
   const val INTERNAL_ERROR = "internalError"

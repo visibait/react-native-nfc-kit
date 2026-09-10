@@ -99,6 +99,30 @@ neither: CoreNFC has no removal callback, and background NDEF reading happens
 entirely inside the system without the app being handed the tag. `nfc.capabilities`
 says which of these the device you are on actually does.
 
+### Card emulation
+
+`react-native-nfc-kit/hce` makes the phone answer a terminal as though it were a
+card — a door reader, a turnstile, another phone:
+
+```ts
+import { hce } from 'react-native-nfc-kit/hce';
+
+const session = await hce.emulateNdef(
+  encodeMessage([createUriRecord('https://www.ventry.es/entrada')]),
+);
+```
+
+Android only, and the app has to be running: Android starts its HCE service without
+reference to any Activity, so when there is no JavaScript runtime the terminal is
+answered `6F00` by native rather than left waiting. iOS has `CardSession` from 17.4
+but it needs an Apple-granted entitlement and works only in the EEA, so
+`hce.isSupported()` answers `false` there. See
+[docs/setup/hce.md](docs/setup/hce.md).
+
+The emulated card is plain TypeScript — `createType4Card` answers the same APDU
+sequence a DESFire does — so it is tested by playing a reader's whole conversation
+through it rather than on a device.
+
 ### React hooks
 
 `react-native-nfc-kit/react` is a separate subpath, so the core API never imports
@@ -177,6 +201,7 @@ in CI, so the two cannot drift apart.
 | Read FeliCa cards                        | [docs/setup/felica.md](docs/setup/felica.md)                         |
 | Read MIFARE Classic                      | [docs/setup/mifare-classic.md](docs/setup/mifare-classic.md)         |
 | Handle a tag that launches your app      | [docs/setup/background-reading.md](docs/setup/background-reading.md) |
+| Emulate a card for a terminal            | [docs/setup/hce.md](docs/setup/hce.md)                               |
 | Install into a bare React Native project | [docs/setup/bare-react-native.md](docs/setup/bare-react-native.md)   |
 
 ## How this is verified
@@ -192,6 +217,7 @@ Nothing here is claimed to work because it looks right.
 | Protocol layers       | 247 unit tests, 100% branch coverage: ISO 7816 chaining and `61xx`/`6Cxx`, ISO 15693, FeliCa, NTAG/Ultralight                          |
 | React hooks           | 26 tests through `renderHook`, including the unmount races: a scan cancelled by navigating away, an answer arriving after unmount      |
 | Background tags       | Tested against the fake native module: the launch tag is consumed once, every tag is released even when its handler throws             |
+| Card emulation        | The emulated Type 4 tag is driven through a whole reader conversation, using the same functions an app uses to talk to a real card     |
 | Config plugin         | 104 tests through Expo's own introspection compiler, so the assertions are about what `expo prebuild` produces                         |
 | The published package | `publint` and `arethetypeswrong` against a packed tarball, so a broken `exports` map fails before a user finds it                      |
 
@@ -210,8 +236,8 @@ release requirement, not an afterthought.
 | M4    | Protocol layers: ISO 7816, ISO 15693, FeliCa, NTAG/Ultralight         | done   |
 | M5    | Config plugin, bare React Native, React hooks                         | done   |
 | M6    | Continuous reading, `onTagLost`, observe mode, background tag reading | next   |
-| M7    | Host card emulation (Android `HostApduService`, iOS `CardSession`)    |        |
-| M8    | Apple VAS, presentment intent assertion                               |        |
+| M7    | Host card emulation (Android)                                         | done   |
+| M8    | Observe mode, polling loop filters, Apple VAS                         | next   |
 | M9    | Web NFC shim, documentation site, migration guide                     |        |
 | M10   | Device matrix pass, soak tests, `1.0.0`                               |        |
 

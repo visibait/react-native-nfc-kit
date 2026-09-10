@@ -1,5 +1,6 @@
 import { XML, type AndroidConfig } from 'expo/config-plugins';
 
+import { buildApduServiceDocument, isHceService } from '../androidHce';
 import {
   buildTechFilterDocument,
   isNfcIntentFilter,
@@ -26,6 +27,9 @@ import { introspectAsync, type IntrospectionResult } from './introspect';
 /* -------------------------------------------------------------------------- */
 /* Property lists                                                             */
 /* -------------------------------------------------------------------------- */
+
+/** Newline, named so it survives being written by a patch script. */
+const SEPARATOR = String.fromCharCode(10);
 
 type PlistValue = string | readonly string[];
 
@@ -86,6 +90,9 @@ export function plistAdditions(
 
 type AndroidManifest = AndroidConfig.Manifest.AndroidManifest;
 type ManifestIntentFilter = AndroidConfig.Manifest.ManifestIntentFilter;
+type ManifestApplication = AndroidConfig.Manifest.ManifestApplication;
+type ManifestService = NonNullable<ManifestApplication['service']>[number];
+type ResourceItemXML = AndroidConfig.Resources.ResourceItemXML;
 
 function attributes(record: Record<string, string | undefined>): string {
   return Object.entries(record)
@@ -109,6 +116,14 @@ function renderIntentFilter(filter: ManifestIntentFilter, indent: string): strin
 
   lines.push(`${indent}</intent-filter>`);
   return lines.join('\n');
+}
+
+function mainApplication(manifest: AndroidManifest): ManifestApplication {
+  const application = manifest.manifest.application?.[0];
+  if (application === undefined) {
+    throw new Error('The introspected manifest has no <application>');
+  }
+  return application;
 }
 
 function mainActivity(manifest: AndroidManifest): ActivityWithMetaData {
@@ -192,6 +207,53 @@ export function renderManifestAdditions(
   return sections.join('\n');
 }
 
+/** The `<service>` elements the plugin added, as an XML sketch. */
+export function renderServiceAdditions(applied: AndroidManifest): string {
+  return (mainApplication(applied).service ?? [])
+    .filter(isHceService)
+    .map(renderService)
+    .join(SEPARATOR);
+}
+
+function renderService(service: ManifestService): string {
+  const lines = [`<service ${attributes(service.$)}>`];
+
+  for (const filter of service['intent-filter'] ?? []) {
+    lines.push(renderIntentFilter(filter, '  '));
+  }
+  const metaData = (service as { 'meta-data'?: { $: Record<string, string> }[] })['meta-data'];
+  for (const item of metaData ?? []) {
+    lines.push(`  <meta-data ${attributes(item.$)} />`);
+  }
+
+  lines.push('</service>');
+  return lines.join(SEPARATOR);
+}
+
+/**
+ * The string resources the plugin added.
+ *
+ * They are shown because the HCE resource references them by name, so a bare
+ * project that copies the resource without them gets a build failure whose
+ * message is about a missing symbol rather than about NFC.
+ */
+export function renderStringAdditions(
+  baseline: readonly ResourceItemXML[],
+  applied: readonly ResourceItemXML[],
+): string {
+  const before = new Set(baseline.map((item) => item.$.name));
+
+  return applied
+    .filter((item) => !before.has(item.$.name))
+    .map((item) => `<string name="${item.$.name}" translatable="false">${item._}</string>`)
+    .join(SEPARATOR);
+}
+
+/** The generated `res/xml/nfc_kit_apduservice.xml`, or an empty string. */
+export function renderApduService(props: ResolvedProps): string {
+  return props.android.hce === null ? '' : XML.format(buildApduServiceDocument(props)).trim();
+}
+
 /** The generated `res/xml/nfc_kit_tech_filter.xml`, or an empty string. */
 export function renderTechFilter(props: ResolvedProps): string {
   return props.android.techLists.length === 0
@@ -208,6 +270,9 @@ export interface RenderedSetup {
   readonly infoPlist: string;
   readonly manifest: string;
   readonly techFilter: string;
+  readonly service: string;
+  readonly strings: string;
+  readonly apduService: string;
 }
 
 let baseline: IntrospectionResult | undefined;
@@ -225,5 +290,8 @@ export async function renderSetupAsync(
     infoPlist: renderPlistEntries(plistAdditions(baseline.infoPlist, applied.infoPlist)),
     manifest: renderManifestAdditions(baseline.manifest, applied.manifest),
     techFilter: renderTechFilter(resolved),
+    service: renderServiceAdditions(applied.manifest),
+    strings: renderStringAdditions(baseline.strings, applied.strings),
+    apduService: renderApduService(resolved),
   };
 }

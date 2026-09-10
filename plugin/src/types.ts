@@ -144,6 +144,46 @@ export interface BackgroundReadingProps {
   techLists?: readonly (readonly TechName[])[];
 }
 
+/** One group of AIDs the emulated card answers for. */
+export interface AidGroup {
+  /**
+   * What to call this group in system settings.
+   *
+   * User-visible, so write it for a user: "Building access" rather than
+   * "AID group 1". Android requires it.
+   */
+  readonly description: string;
+  /** AIDs, as plain hexadecimal. 5 to 16 bytes each, per ISO 7816-4. */
+  readonly aids: readonly string[];
+}
+
+export interface HceProps {
+  /**
+   * What the card emulation service is for, shown to the user in settings.
+   *
+   * Required by Android, and it appears in a list next to other apps' services,
+   * so it should name your app's purpose rather than the technology.
+   */
+  readonly description: string;
+  /**
+   * The AIDs this app answers for.
+   *
+   * These can also be set at runtime with `hce.start({ aids })`, which is what
+   * makes changing them not require a rebuild. What is declared here is what the
+   * app answers for before any JavaScript has run.
+   */
+  readonly aidGroups: readonly AidGroup[];
+  /**
+   * Whether the device must be unlocked for the card to answer.
+   *
+   * Defaults to `false`. `true` is the right choice for anything that authorises
+   * something -- a door, a payment -- and the wrong one for a public identifier,
+   * because the terminal gets no answer at all from a locked phone and the user
+   * has no idea why.
+   */
+  readonly requireDeviceUnlock?: boolean;
+}
+
 export interface AndroidPluginProps {
   /**
    * Whether NFC hardware is required to install the app.
@@ -162,6 +202,18 @@ export interface AndroidPluginProps {
    * the background.
    */
   backgroundReading?: BackgroundReadingProps;
+
+  /**
+   * Card emulation: makes the app answer a terminal as though it were a card.
+   *
+   * Configuring this declares an HCE service in the manifest. Leave it out and no
+   * service is declared at all, which is what an app that only reads tags wants.
+   *
+   * Only the `other` AID category is supported. The `payment` category needs a
+   * 260x96 banner drawable and the user actively choosing the app as their default
+   * wallet -- see `docs/setup/hce.md`.
+   */
+  readonly hce?: HceProps;
 
   /**
    * Whether to protect the main activity with `android.permission.DISPATCH_NFC_MESSAGE`.
@@ -217,6 +269,8 @@ export interface ResolvedProps {
     readonly ndefIntentFilters: readonly NdefIntentFilter[];
     readonly techLists: readonly (readonly TechName[])[];
     readonly backgroundReadingEnabled: boolean;
+    /** `null` when card emulation is not configured. */
+    readonly hce: HceProps | null;
     /** `'auto'` is still unresolved here; deciding it needs the target SDK. */
     readonly dispatchNfcMessagePermission: 'auto' | boolean;
   };
@@ -309,6 +363,52 @@ function assertValidNdefFilter(filter: NdefIntentFilter, index: number): void {
   }
 }
 
+function assertValidHce(hce: HceProps): void {
+  if (hce.description.trim().length === 0) {
+    throw new NfcKitPluginError(
+      'android.hce.description is empty. Android requires it, and the user sees it in the list ' +
+        'of card emulation services alongside other apps.',
+    );
+  }
+  if (hce.aidGroups.length === 0) {
+    throw new NfcKitPluginError(
+      'android.hce.aidGroups is empty, so the service would answer for nothing. Declare the AIDs ' +
+        'your terminals select, or pass them at runtime with hce.start({ aids }).',
+    );
+  }
+
+  hce.aidGroups.forEach((group, index) => {
+    const at = `android.hce.aidGroups[${index}]`;
+
+    if (group.description.trim().length === 0) {
+      throw new NfcKitPluginError(`${at}.description is empty; Android requires one per group.`);
+    }
+    if (group.aids.length === 0) {
+      throw new NfcKitPluginError(`${at}.aids is empty; a group with no AIDs matches nothing.`);
+    }
+
+    group.aids.forEach((aid, aidIndex) => {
+      // The same range ISO 7816-4 allows and the same one iOS enforces. Android
+      // rejects anything else when the resource is compiled, which is a long way
+      // from where the mistake was made.
+      assertHex(aid, `${at}.aids[${aidIndex}]`);
+      const bytes = aid.length / 2;
+      if (bytes < 5 || bytes > 16) {
+        throw new NfcKitPluginError(
+          `${at}.aids[${aidIndex}] is ${bytes} bytes; an ISO 7816 AID is 5 to 16 bytes.`,
+        );
+      }
+    });
+
+    const duplicate = group.aids.find(
+      (aid, i) => group.aids.findIndex((other) => other.toUpperCase() === aid.toUpperCase()) !== i,
+    );
+    if (duplicate !== undefined) {
+      throw new NfcKitPluginError(`${at}.aids lists "${duplicate}" twice.`);
+    }
+  });
+}
+
 function assertValidTechList(list: readonly TechName[], index: number): void {
   const at = `android.backgroundReading.techLists[${index}]`;
 
@@ -379,6 +479,11 @@ export function resolveProps(props: NfcKitPluginProps | undefined): ResolvedProp
   const techLists = props?.android?.backgroundReading?.techLists ?? [];
   techLists.forEach(assertValidTechList);
 
+  const hce = props?.android?.hce ?? null;
+  if (hce !== null) {
+    assertValidHce(hce);
+  }
+
   return {
     readerUsageDescription: props?.readerUsageDescription ?? DEFAULT_READER_USAGE_DESCRIPTION,
     ios: { formats, selectIdentifiers, felicaSystemCodes },
@@ -387,6 +492,7 @@ export function resolveProps(props: NfcKitPluginProps | undefined): ResolvedProp
       ndefIntentFilters,
       techLists,
       backgroundReadingEnabled: ndefIntentFilters.length > 0 || techLists.length > 0,
+      hce,
       dispatchNfcMessagePermission: props?.android?.dispatchNfcMessagePermission ?? 'auto',
     },
   };

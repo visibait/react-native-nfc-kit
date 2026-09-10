@@ -22,6 +22,14 @@ const RECIPES: Record<string, NfcKitPluginProps | undefined> = {
   default: undefined,
   iso7816: { ios: { selectIdentifiers: ['A0000002471001'] } },
   felica: { ios: { felicaSystemCodes: ['12FC'] } },
+  hce: {
+    android: {
+      hce: {
+        description: 'Ventry building access',
+        aidGroups: [{ description: 'Doors', aids: ['F0010203040506'] }],
+      },
+    },
+  },
   'background-reading': {
     android: {
       backgroundReading: {
@@ -35,7 +43,15 @@ const RECIPES: Record<string, NfcKitPluginProps | undefined> = {
 
 type Slot = keyof RenderedSetup;
 
-const SLOTS: readonly Slot[] = ['entitlements', 'infoPlist', 'manifest', 'techFilter'];
+const SLOTS: readonly Slot[] = [
+  'entitlements',
+  'infoPlist',
+  'manifest',
+  'techFilter',
+  'service',
+  'strings',
+  'apduService',
+];
 
 /** One `<!-- generated: recipe.slot -->` block found in a documentation file. */
 interface Block {

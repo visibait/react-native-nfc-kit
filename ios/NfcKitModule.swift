@@ -3,7 +3,7 @@ import UIKit
 @preconcurrency import CoreNFC
 
 /// Bumped together with `CONTRACT_VERSION` in `src/native/contract.ts`.
-private let contractVersion = 2
+private let contractVersion = 3
 
 /// Mirrors `NativeSessionOptions`. The Android fields are accepted and ignored.
 internal struct SessionOptions: Record {
@@ -116,7 +116,9 @@ public final class NfcKitModule: Module, @unchecked Sendable {
       "onBackgroundTag",
       "onTagLost",
       "onSessionInvalidated",
-      "onAvailabilityChanged"
+      "onAvailabilityChanged",
+      "onHceCommand",
+      "onHceDeactivated"
     )
 
     /* -- Availability ---------------------------------------------------- */
@@ -240,6 +242,36 @@ public final class NfcKitModule: Module, @unchecked Sendable {
       // the domain is yours. There is no CoreNFC surface that hands the app the
       // tag, so nothing here could return one.
       nil
+    }
+
+    /* -- Card emulation --------------------------------------------------- */
+
+    AsyncFunction("isHceSupported") { () -> Bool in
+      // Not a placeholder. iOS has had CardSession since 17.4, but it needs the
+      // com.apple.developer.nfc.hce entitlement, which Apple grants case by case
+      // after a request describing the use, and it works only in the EEA. An app
+      // that has been through that process is not served by a library guessing;
+      // reporting false is what lets `hce.isSupported()` be trusted.
+      false
+    }
+
+    AsyncFunction("startHce") { (_: [String: Any]) throws -> Void in
+      throw NfcException(
+        NfcErrorCode.unsupportedPlatform,
+        "Card emulation is not available on iOS through this library. CoreNFC's CardSession "
+          + "(iOS 17.4+) requires an Apple-granted entitlement and is limited to the EEA, so it "
+          + "cannot be offered as a general capability. Guard with hce.isSupported()."
+      )
+    }
+
+    AsyncFunction("stopHce") { () -> Void in
+      // Stopping something that was never started is not an error, and a cleanup
+      // path in a `finally` should not have to branch on the platform.
+    }
+
+    AsyncFunction("respondToHce") { (_: String, _: Data) -> Bool in
+      // No command can have arrived, so there is nothing this could answer.
+      false
     }
 
     /* -- Lifecycle -------------------------------------------------------- */

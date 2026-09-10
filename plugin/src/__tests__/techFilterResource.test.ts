@@ -4,10 +4,12 @@ import path from 'node:path';
 
 import type { ExportedConfig } from 'expo/config-plugins';
 
-import { resolveProps, type TechName } from '../types';
+import { resolveProps, type NfcKitPluginProps, type TechName } from '../types';
 import {
+  apduServicePath,
   techFilterPath,
   withAndroidTechFilterResource,
+  writeApduServiceAsync,
   writeTechFilterAsync,
 } from '../withAndroidNfc';
 
@@ -110,5 +112,82 @@ describe('the generated tech-filter resource', () => {
 
       expect(fs.existsSync(techFilterPath(platformProjectRoot))).toBe(false);
     });
+  });
+});
+
+describe('the generated HCE service resource', () => {
+  let platformProjectRoot: string;
+
+  const HCE = {
+    android: {
+      hce: {
+        description: 'Ventry building access',
+        aidGroups: [{ description: 'Doors', aids: ['F0010203040506'] }],
+      },
+    },
+  } satisfies NfcKitPluginProps;
+
+  beforeEach(() => {
+    platformProjectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nfc-kit-hce-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(platformProjectRoot, { recursive: true, force: true });
+  });
+
+  it('lands where the meta-data points', () => {
+    expect(apduServicePath(platformProjectRoot)).toBe(
+      path.join(platformProjectRoot, 'app', 'src', 'main', 'res', 'xml', 'nfc_kit_apduservice.xml'),
+    );
+  });
+
+  it('declares the AIDs the terminal will select', async () => {
+    await writeApduServiceAsync(platformProjectRoot, resolveProps(HCE));
+
+    const xml = fs.readFileSync(apduServicePath(platformProjectRoot), 'utf8');
+    expect(xml).toContain('<host-apdu-service');
+    expect(xml).toContain('android:name="F0010203040506"');
+    expect(xml).toContain('android:category="other"');
+    expect(xml).toContain('@string/nfc_kit_hce_description');
+  });
+
+  it('is stable across runs, so prebuild produces no spurious diff', async () => {
+    await writeApduServiceAsync(platformProjectRoot, resolveProps(HCE));
+    const first = fs.readFileSync(apduServicePath(platformProjectRoot), 'utf8');
+
+    await writeApduServiceAsync(platformProjectRoot, resolveProps(HCE));
+
+    expect(fs.readFileSync(apduServicePath(platformProjectRoot), 'utf8')).toBe(first);
+  });
+
+  it('removes the resource once card emulation is switched off', async () => {
+    // A stale resource keeps the declared service pointing at real AIDs, so
+    // terminals keep selecting an app that no longer intends to answer.
+    await writeApduServiceAsync(platformProjectRoot, resolveProps(HCE));
+    await writeApduServiceAsync(platformProjectRoot, resolveProps({}));
+
+    expect(fs.existsSync(apduServicePath(platformProjectRoot))).toBe(false);
+  });
+
+  it('does not mind being asked to remove a file that is not there', async () => {
+    await expect(
+      writeApduServiceAsync(platformProjectRoot, resolveProps({})),
+    ).resolves.toBeUndefined();
+  });
+
+  it('is written by the registered mod alongside the tech filter', async () => {
+    const config = withAndroidTechFilterResource(
+      { name: 'fixture', slug: 'fixture' } as ExportedConfig,
+      resolveProps(HCE),
+    ) as ExportedConfig;
+    const mod = config.mods?.android?.dangerous;
+
+    await mod?.({
+      ...config,
+      modRequest: { platformProjectRoot, nextMod: (next: unknown) => next },
+      modResults: {},
+    } as Parameters<NonNullable<typeof mod>>[0]);
+
+    expect(fs.existsSync(apduServicePath(platformProjectRoot))).toBe(true);
   });
 });

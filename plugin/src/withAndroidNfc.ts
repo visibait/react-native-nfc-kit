@@ -8,8 +8,15 @@ import {
   XML,
   withAndroidManifest,
   withDangerousMod,
+  withStringsXml,
 } from 'expo/config-plugins';
 
+import {
+  APDU_SERVICE_RESOURCE,
+  applyHceService,
+  applyHceStrings,
+  buildApduServiceDocument,
+} from './androidHce';
 import {
   applyDispatchPermission,
   applyNfcToActivity,
@@ -76,6 +83,55 @@ export const withAndroidNfcIntentFilters: ConfigPlugin<ResolvedProps> = (config,
   });
 
 /**
+ * Declares the HCE service, or removes it when card emulation is switched off.
+ *
+ * Removal matters as much as addition: a service left declared after the option
+ * is dropped keeps the app registered as a card emulator, so terminals keep
+ * selecting it and getting `6F00` from a handler that no longer exists.
+ */
+export const withAndroidHceService: ConfigPlugin<ResolvedProps> = (config, props) =>
+  withAndroidManifest(config, (mod) => {
+    applyHceService(AndroidConfig.Manifest.getMainApplicationOrThrow(mod.modResults), props);
+    return mod;
+  });
+
+/** Writes the user-visible strings the generated HCE resource points at. */
+export const withAndroidHceStrings: ConfigPlugin<ResolvedProps> = (config, props) =>
+  withStringsXml(config, (mod) => {
+    applyHceStrings(mod.modResults.resources, props);
+    return mod;
+  });
+
+/** Absolute path of the generated HCE service resource. */
+export function apduServicePath(platformProjectRoot: string): string {
+  return path.join(
+    platformProjectRoot,
+    'app',
+    'src',
+    'main',
+    'res',
+    'xml',
+    `${APDU_SERVICE_RESOURCE}.xml`,
+  );
+}
+
+/** Writes `res/xml/nfc_kit_apduservice.xml`, or removes it when unused. */
+export async function writeApduServiceAsync(
+  platformProjectRoot: string,
+  props: ResolvedProps,
+): Promise<void> {
+  const filePath = apduServicePath(platformProjectRoot);
+
+  if (props.android.hce === null) {
+    await fs.rm(filePath, { force: true });
+    return;
+  }
+
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, XML.format(buildApduServiceDocument(props)), 'utf8');
+}
+
+/**
  * Absolute path of the generated tech-filter resource.
  *
  * Derived from the platform project root rather than looked up through
@@ -122,6 +178,7 @@ export const withAndroidTechFilterResource: ConfigPlugin<ResolvedProps> = (confi
     'android',
     async (mod) => {
       await writeTechFilterAsync(mod.modRequest.platformProjectRoot, props.android.techLists);
+      await writeApduServiceAsync(mod.modRequest.platformProjectRoot, props);
       return mod;
     },
   ]);
@@ -131,6 +188,8 @@ export const withAndroidNfc: ConfigPlugin<ResolvedProps> = (config, props) => {
   next = withAndroidNfcFeature(next, props);
   next = withAndroidSingleTopLaunchMode(next);
   next = withAndroidNfcIntentFilters(next, props);
+  next = withAndroidHceService(next, props);
+  next = withAndroidHceStrings(next, props);
   next = withAndroidTechFilterResource(next, props);
   return next;
 };

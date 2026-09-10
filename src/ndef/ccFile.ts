@@ -21,7 +21,7 @@
  */
 
 import { ByteReader } from './bytes.js';
-import { ndefMalformed } from '../errors.js';
+import { invalidArgument, ndefMalformed } from '../errors.js';
 
 /** Smallest CC file that can hold the header plus one NDEF File Control TLV. */
 export const MIN_CC_LENGTH = 15;
@@ -160,4 +160,94 @@ export function decodeCapabilityContainer(bytes: Uint8Array): CapabilityContaine
   }
 
   return { length, mappingVersion, maxReadSize, maxWriteSize, ndefFile, otherTlvs };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Building a CC file                                                         */
+/* -------------------------------------------------------------------------- */
+
+/** Default NDEF elementary file identifier, as used by every Type 4 tag. */
+export const DEFAULT_NDEF_FILE_ID = 0xe104;
+
+export interface CapabilityContainerInit {
+  /** Elementary file identifier the reader should SELECT for the message. */
+  readonly fileId: number;
+  /** Largest the NDEF file may become, including its 2-byte length prefix. */
+  readonly maxFileSize: number;
+  /** MLe: most bytes one ReadBinary response may return. */
+  readonly maxReadSize: number;
+  /** MLc: most bytes one UpdateBinary command may carry. */
+  readonly maxWriteSize: number;
+  readonly writable: boolean;
+  /** Defaults to 2.0, which is what a reader expects unless you know otherwise. */
+  readonly mappingVersion?: MappingVersion;
+}
+
+function assertU16(name: string, value: number): void {
+  if (!Number.isInteger(value) || value < 0 || value > 0xffff) {
+    throw invalidArgument(`${name} must be a 16-bit value; received ${value}.`);
+  }
+}
+
+/**
+ * Builds a CC file, for emulating a Type 4 tag rather than reading one.
+ *
+ * The counterpart of {@link decodeCapabilityContainer}, and tested against it:
+ * every value written here is read back and compared, because a CC file is the
+ * first thing a terminal reads and a wrong byte in it makes the card look absent
+ * rather than broken.
+ *
+ * Only the NDEF File Control TLV is written. A CC file may carry others, but a
+ * card emulating NDEF has nothing else to say, and the shortest correct answer is
+ * the most interoperable one.
+ */
+export function encodeCapabilityContainer(init: CapabilityContainerInit): Uint8Array {
+  assertU16('The NDEF file id', init.fileId);
+  assertU16('The maximum NDEF file size', init.maxFileSize);
+  assertU16('MLe', init.maxReadSize);
+  assertU16('MLc', init.maxWriteSize);
+
+  // 0x0000 and 0xFFFF are reserved by ISO 7816-4, and 0xE102/0xE103 are the CC
+  // file's own identifiers. A reader that is told to select one of those looks
+  // for a file that cannot be the message.
+  if (init.fileId === 0x0000 || init.fileId === 0xffff || init.fileId === 0xe103) {
+    throw invalidArgument(
+      `0x${init.fileId.toString(16)} cannot be the NDEF file id: it is reserved. ` +
+        `Use 0x${DEFAULT_NDEF_FILE_ID.toString(16)} unless a reader requires otherwise.`,
+    );
+  }
+  // Two bytes hold the length, so a file smaller than that cannot hold an empty
+  // message, let alone a message.
+  if (init.maxFileSize < 2) {
+    throw invalidArgument(
+      `The maximum NDEF file size is ${init.maxFileSize}; it must be at least 2, for the length prefix.`,
+    );
+  }
+  if (init.maxReadSize < 1 || init.maxWriteSize < 1) {
+    throw invalidArgument('MLe and MLc must both be at least 1.');
+  }
+
+  const version = init.mappingVersion ?? { major: 2, minor: 0 };
+  if (version.major > 0x0f || version.minor > 0x0f || version.major < 0 || version.minor < 0) {
+    throw invalidArgument(
+      `The mapping version is ${version.major}.${version.minor}; each half is a single nibble.`,
+    );
+  }
+
+  const bytes = new Uint8Array(MIN_CC_LENGTH);
+  const view = new DataView(bytes.buffer);
+
+  view.setUint16(0, MIN_CC_LENGTH);
+  bytes[2] = ((version.major & 0x0f) << 4) | (version.minor & 0x0f);
+  view.setUint16(3, init.maxReadSize);
+  view.setUint16(5, init.maxWriteSize);
+
+  bytes[7] = NDEF_FILE_CONTROL_TAG;
+  bytes[8] = NDEF_FILE_CONTROL_LENGTH;
+  view.setUint16(9, init.fileId);
+  view.setUint16(11, init.maxFileSize);
+  bytes[13] = ACCESS_GRANTED;
+  bytes[14] = init.writable ? ACCESS_GRANTED : ACCESS_DENIED;
+
+  return bytes;
 }

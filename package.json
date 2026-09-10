@@ -25,6 +25,16 @@
         "default": "./build/cjs/ndef/index.js"
       }
     },
+    "./hce": {
+      "import": {
+        "types": "./build/esm/hce/index.d.ts",
+        "default": "./build/esm/hce/index.js"
+      },
+      "require": {
+        "types": "./build/cjs/hce/index.d.ts",
+        "default": "./build/cjs/hce/index.js"
+      }
+    },
     "./react": {
       "import": {
         "types": "./build/esm/react/index.d.ts",
@@ -51,6 +61,7 @@
   "files": [
     "build",
     "plugin/build",
+    "hce",
     "ndef",
     "protocols",
     "react",

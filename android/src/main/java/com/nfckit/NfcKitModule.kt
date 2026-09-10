@@ -6,7 +6,12 @@ import android.content.Intent
 import android.nfc.NfcAdapter
 import android.os.Build
 import android.provider.Settings
+import android.content.ComponentName
+import android.content.pm.PackageManager
+import android.nfc.cardemulation.CardEmulation
 import com.nfckit.background.IntentTags
+import com.nfckit.hce.HceBridge
+import com.nfckit.hce.NfcKitHostApduService
 import com.nfckit.reader.NfcKitReaderCallback
 import com.nfckit.reader.ReaderModeController
 import com.nfckit.reader.ReaderOptions
@@ -24,13 +29,22 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Bumped together with `CONTRACT_VERSION` in `src/native/contract.ts`. */
-private const val CONTRACT_VERSION = 2
+private const val CONTRACT_VERSION = 3
 
 private const val EVENT_TAG_DISCOVERED = "onTagDiscovered"
 private const val EVENT_BACKGROUND_TAG = "onBackgroundTag"
 private const val EVENT_TAG_LOST = "onTagLost"
 private const val EVENT_SESSION_INVALIDATED = "onSessionInvalidated"
 private const val EVENT_AVAILABILITY_CHANGED = "onAvailabilityChanged"
+private const val EVENT_HCE_COMMAND = "onHceCommand"
+private const val EVENT_HCE_DEACTIVATED = "onHceDeactivated"
+
+/** Mirrors `NativeHceOptions`. */
+class HceOptions : Record {
+  @Field val timeoutMs: Int = 1_000
+  @Field val timeoutStatus: Int = 0x6F00
+  @Field val aids: List<String>? = null
+}
 
 /** Mirrors `NativeSessionOptions`. The iOS fields are accepted and ignored here. */
 class SessionOptions : Record {
@@ -131,7 +145,10 @@ class NfcKitModule : Module() {
         // is a promise about latency, and it should describe this device.
         "tagLost" to if (TagLostWatcher.platformReportsTagLost()) "native" else "polled",
         "perSessionConfig" to false,
-        "hce" to false,
+        // Whether the app can actually be selected still depends on an HCE
+        // service and AIDs in its manifest, which is the config plugin's job.
+        // This says the controller implements host card emulation.
+        "hce" to hasHceFeature(),
         // Whether the app actually receives them still depends on the intent
         // filters in its manifest, which is the config plugin's job. This says
         // the module can deliver one when the system dispatches it.
@@ -145,6 +162,8 @@ class NfcKitModule : Module() {
       EVENT_TAG_LOST,
       EVENT_SESSION_INVALIDATED,
       EVENT_AVAILABILITY_CHANGED,
+      EVENT_HCE_COMMAND,
+      EVENT_HCE_DEACTIVATED,
     )
 
     /* -- Availability ---------------------------------------------------- */
@@ -282,6 +301,57 @@ class NfcKitModule : Module() {
       takeIntentTag(currentActivityOrNull()?.intent)
     }
 
+    /* -- Card emulation --------------------------------------------------- */
+
+    AsyncFunction("isHceSupported") { hasHceFeature() }
+
+    AsyncFunction("startHce") { options: HceOptions ->
+      if (!hasHceFeature()) {
+        throw NfcException(
+          NfcErrorCode.HCE_UNSUPPORTED,
+          "This device's NFC controller does not implement host card emulation.",
+        )
+      }
+      if (HceBridge.active) {
+        throw NfcException(
+          NfcErrorCode.SYSTEM_BUSY,
+          "Card emulation is already running. Stop it before starting another session.",
+        )
+      }
+
+      options.aids?.let { registerAids(it) }
+
+      val timeoutResponse = byteArrayOf(
+        ((options.timeoutStatus shr 8) and 0xFF).toByte(),
+        (options.timeoutStatus and 0xFF).toByte(),
+      )
+
+      HceBridge.attach(
+        object : HceBridge.Host {
+          override fun onCommand(requestId: String, command: ByteArray) {
+            sendEvent(
+              EVENT_HCE_COMMAND,
+              mapOf("requestId" to requestId, "commandHex" to Hex.encode(command)),
+            )
+          }
+
+          override fun onDeactivated(reason: Int) {
+            sendEvent(EVENT_HCE_DEACTIVATED, mapOf("reason" to deactivationReason(reason)))
+          }
+        },
+        timeoutMs = options.timeoutMs.toLong(),
+        timeoutResponse = timeoutResponse,
+      )
+    }
+
+    AsyncFunction("stopHce") {
+      HceBridge.detach()
+    }
+
+    AsyncFunction("respondToHce") { requestId: String, response: ByteArray ->
+      HceBridge.answer(requestId, response)
+    }
+
     /* -- Lifecycle -------------------------------------------------------- */
 
     OnActivityEntersForeground {
@@ -375,6 +445,57 @@ class NfcKitModule : Module() {
       "ios" to null,
     )
 
+  private fun hasHceFeature(): Boolean =
+    appContext.reactContext
+      ?.packageManager
+      ?.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION) == true
+
+  /** Android's deactivation reasons, as names rather than as integers. */
+  private fun deactivationReason(reason: Int): String =
+    when (reason) {
+      HostApduDeactivation.DESELECTED -> "deselected"
+      else -> "linkLoss"
+    }
+
+  /**
+   * Replaces the AIDs registered for this app's HCE service.
+   *
+   * The service still has to be declared in the manifest -- that is what makes the
+   * app eligible at all -- but the AIDs it answers for can change without a
+   * rebuild, which is the whole point of doing it here.
+   *
+   * Only the "other" category. Payment AIDs additionally require the user to have
+   * chosen the app as their default wallet, which is a flow an app has to run
+   * deliberately rather than something a library should arrange behind its back.
+   */
+  private fun registerAids(aids: List<String>) {
+    val context = appContext.reactContext
+      ?: throw NfcException(NfcErrorCode.INTERNAL_ERROR, "No context to register AIDs with.")
+    val adapter = readerMode.requireAdapter()
+    val emulation = CardEmulation.getInstance(adapter)
+    val component = ComponentName(context, NfcKitHostApduService::class.java)
+
+    val registered = try {
+      emulation.registerAidsForService(component, CardEmulation.CATEGORY_OTHER, aids)
+    } catch (cause: RuntimeException) {
+      throw NfcException.from(
+        NfcErrorCode.HCE_UNSUPPORTED,
+        "The system refused to register these AIDs. Check that the HCE service is declared in " +
+          "the manifest and that each AID is valid hexadecimal of 5 to 16 bytes.",
+        cause,
+      )
+    }
+
+    if (!registered) {
+      throw NfcException(
+        NfcErrorCode.HCE_UNSUPPORTED,
+        "The system refused to register these AIDs for the HCE service. The most common reason " +
+          "is that another app already owns one of them, or that the service is missing from " +
+          "the manifest -- add the react-native-nfc-kit plugin's android.hce option and rebuild.",
+      )
+    }
+  }
+
   private fun teardown() {
     val active = session
     session = null
@@ -384,5 +505,21 @@ class NfcKitModule : Module() {
 
     backgroundHandles.values.forEach { it.close() }
     backgroundHandles.clear()
+
+    // A stale host would leave the service handing commands to a JavaScript
+    // context that no longer exists, and the terminal waiting for the deadline.
+    HceBridge.detach()
   }
+}
+
+/**
+ * `HostApduService`'s deactivation constants, named locally.
+ *
+ * Referenced by value rather than through the class so this file does not have to
+ * import the service to read two integers, and so the mapping is visible next to
+ * the names it produces.
+ */
+private object HostApduDeactivation {
+  const val LINK_LOSS = 0
+  const val DESELECTED = 1
 }

@@ -1,5 +1,12 @@
 import { NfcError } from '../../errors.js';
-import { MIN_CC_LENGTH, NDEF_FILE_CONTROL_TAG, decodeCapabilityContainer } from '../ccFile.js';
+import {
+  DEFAULT_NDEF_FILE_ID,
+  MIN_CC_LENGTH,
+  NDEF_FILE_CONTROL_TAG,
+  decodeCapabilityContainer,
+  encodeCapabilityContainer,
+  type CapabilityContainerInit,
+} from '../ccFile.js';
 
 function bytes(...values: number[]): Uint8Array {
   return new Uint8Array(values);
@@ -176,5 +183,119 @@ describe('decodeCapabilityContainer', () => {
       0x05,
     ]);
     expectMalformed(truncated, 'CC TLV length');
+  });
+});
+
+describe('encodeCapabilityContainer', () => {
+  const init: CapabilityContainerInit = {
+    fileId: DEFAULT_NDEF_FILE_ID,
+    maxFileSize: 0x0100,
+    maxReadSize: 0x00fb,
+    maxWriteSize: 0x00ff,
+    writable: true,
+  };
+
+  function expectRejected(overrides: Partial<CapabilityContainerInit>, messagePart: string): void {
+    try {
+      encodeCapabilityContainer({ ...init, ...overrides });
+    } catch (error) {
+      expect(NfcError.is(error, 'invalidArgument')).toBe(true);
+      expect((error as NfcError).message).toContain(messagePart);
+      return;
+    }
+    throw new Error('Expected encodeCapabilityContainer to reject, but it returned a value.');
+  }
+
+  it('produces something the decoder reads back unchanged', () => {
+    // The pairing is the point: a CC file is the first thing a terminal reads,
+    // and a wrong byte in it makes an emulated card look absent rather than
+    // broken. Round-tripping is how that stays true.
+    const decoded = decodeCapabilityContainer(encodeCapabilityContainer(init));
+
+    expect(decoded.length).toBe(MIN_CC_LENGTH);
+    expect(decoded.mappingVersion).toEqual({ major: 2, minor: 0 });
+    expect(decoded.maxReadSize).toBe(0x00fb);
+    expect(decoded.maxWriteSize).toBe(0x00ff);
+    expect(decoded.ndefFile).toEqual({
+      fileId: DEFAULT_NDEF_FILE_ID,
+      maxFileSize: 0x0100,
+      readAccess: 0x00,
+      writeAccess: 0x00,
+      readable: true,
+      writable: true,
+      permanentlyReadOnly: false,
+    });
+    expect(decoded.otherTlvs).toEqual([]);
+  });
+
+  it('marks a read-only file as permanently locked', () => {
+    const decoded = decodeCapabilityContainer(
+      encodeCapabilityContainer({ ...init, writable: false }),
+    );
+
+    expect(decoded.ndefFile?.writable).toBe(false);
+    expect(decoded.ndefFile?.permanentlyReadOnly).toBe(true);
+  });
+
+  it('writes the exact 15 bytes a Type 4 tag returns', () => {
+    expect(
+      encodeCapabilityContainer({ ...init, maxReadSize: 0x003b, maxWriteSize: 0x0034 }),
+    ).toEqual(
+      bytes(
+        0x00,
+        0x0f,
+        0x20,
+        0x00,
+        0x3b,
+        0x00,
+        0x34,
+        NDEF_FILE_CONTROL_TAG,
+        0x06,
+        0xe1,
+        0x04,
+        0x01,
+        0x00,
+        0x00,
+        0x00,
+      ),
+    );
+  });
+
+  it('honours a non-default mapping version', () => {
+    const decoded = decodeCapabilityContainer(
+      encodeCapabilityContainer({ ...init, mappingVersion: { major: 3, minor: 1 } }),
+    );
+
+    expect(decoded.mappingVersion).toEqual({ major: 3, minor: 1 });
+  });
+
+  describe('rejects values a reader could not use', () => {
+    it('a file id outside 16 bits', () => {
+      expectRejected({ fileId: 0x1e104 }, 'must be a 16-bit value');
+      expectRejected({ maxFileSize: -1 }, 'must be a 16-bit value');
+      expectRejected({ maxReadSize: 1.5 }, 'must be a 16-bit value');
+      expectRejected({ maxWriteSize: 0x10000 }, 'must be a 16-bit value');
+    });
+
+    it('a reserved file id', () => {
+      // Selecting one of these looks for a file that cannot hold the message.
+      expectRejected({ fileId: 0x0000 }, 'reserved');
+      expectRejected({ fileId: 0xffff }, 'reserved');
+      expectRejected({ fileId: 0xe103 }, 'reserved');
+    });
+
+    it('a file too small to hold even the length prefix', () => {
+      expectRejected({ maxFileSize: 1 }, 'at least 2');
+    });
+
+    it('a zero MLe or MLc', () => {
+      expectRejected({ maxReadSize: 0 }, 'at least 1');
+      expectRejected({ maxWriteSize: 0 }, 'at least 1');
+    });
+
+    it('a mapping version half that does not fit a nibble', () => {
+      expectRejected({ mappingVersion: { major: 16, minor: 0 } }, 'single nibble');
+      expectRejected({ mappingVersion: { major: 2, minor: -1 } }, 'single nibble');
+    });
   });
 });

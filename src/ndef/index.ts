@@ -146,8 +146,19 @@ export type {
 export { MAX_TLV_LENGTH, TlvTag, decodeTlvs, encodeNdefTlv, findNdefMessageTlv } from './tlv.js';
 export type { EncodeNdefTlvOptions, Tlv } from './tlv.js';
 
-export { MIN_CC_LENGTH, NDEF_FILE_CONTROL_TAG, decodeCapabilityContainer } from './ccFile.js';
-export type { CapabilityContainer, MappingVersion, NdefFileControl } from './ccFile.js';
+export {
+  DEFAULT_NDEF_FILE_ID,
+  MIN_CC_LENGTH,
+  NDEF_FILE_CONTROL_TAG,
+  decodeCapabilityContainer,
+  encodeCapabilityContainer,
+} from './ccFile.js';
+export type {
+  CapabilityContainer,
+  CapabilityContainerInit,
+  MappingVersion,
+  NdefFileControl,
+} from './ccFile.js';
 
 /* -------------------------------------------------------------------------- */
 /* Errors                                                                     */

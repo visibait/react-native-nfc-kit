@@ -39,7 +39,11 @@
               "ndef": [{ "mimeType": "application/vnd.nfckit.example" }],
               "techLists": [["isoDep"], ["mifareUltralight", "ndef"]]
             },
-            "dispatchNfcMessagePermission": false
+            "dispatchNfcMessagePermission": false,
+            "hce": {
+              "description": "NFC Kit example card",
+              "aidGroups": [{ "description": "Example", "aids": ["F0010203040506"] }]
+            }
           }
         }
       ]

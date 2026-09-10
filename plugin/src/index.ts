@@ -16,10 +16,12 @@ const withNfcKit: ConfigPlugin<NfcKitPluginProps | undefined> = (config, props) 
 };
 
 export type {
+  AidGroup,
   AndroidPluginProps,
   BackgroundReadingProps,
   IosPluginProps,
   NdefIntentFilter,
+  HceProps,
   NfcKitPluginProps,
   TechName,
 } from './types';

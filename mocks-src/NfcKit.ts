@@ -182,7 +182,7 @@ export const __nfcKitMock = {
 /* The mocked native surface                                                  */
 /* -------------------------------------------------------------------------- */
 
-export const contractVersion = 2;
+export const contractVersion = 3;
 
 export const capabilities = {
   platform: 'android',
@@ -190,7 +190,7 @@ export const capabilities = {
   techs: DEFAULT_TECHS,
   tagLost: 'polled',
   perSessionConfig: false,
-  hce: false,
+  hce: true,
   backgroundReading: true,
 };
 
@@ -289,4 +289,24 @@ export function getTechTimeout(handleId: string, tech: string): Promise<number> 
 
 export function takeLaunchTag(): Promise<null> {
   return record('takeLaunchTag', [], null);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Card emulation                                                             */
+/* -------------------------------------------------------------------------- */
+
+export function isHceSupported(): Promise<boolean> {
+  return record('isHceSupported', [], true);
+}
+
+export function startHce(options: unknown): Promise<void> {
+  return record('startHce', [options], undefined);
+}
+
+export function stopHce(): Promise<void> {
+  return record('stopHce', [], undefined);
+}
+
+export function respondToHce(requestId: string, response: Uint8Array): Promise<boolean> {
+  return record('respondToHce', [requestId, response], true);
 }

@@ -37,7 +37,7 @@
  *
  * Bumping this is a minor release, and the changelog marks it.
  */
-export const CONTRACT_VERSION = 2;
+export const CONTRACT_VERSION = 3;
 
 /** Native module name, as registered by both platforms. */
 export const NATIVE_MODULE_NAME = 'NfcKit';
@@ -189,6 +189,38 @@ export interface NativeSessionOptions {
   readonly androidPresenceCheckDelayMs: number | null;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Card emulation                                                             */
+/* -------------------------------------------------------------------------- */
+
+/** Why the terminal stopped talking to the emulated card. */
+export const HCE_DEACTIVATION_REASONS = ['linkLoss', 'deselected'] as const;
+
+export type HceDeactivationReason = (typeof HCE_DEACTIVATION_REASONS)[number];
+
+export interface NativeHceOptions {
+  /**
+   * How long native waits for JavaScript to answer one command, in milliseconds.
+   *
+   * The deadline belongs in native because the thing with a deadline is the radio
+   * link, and JavaScript is exactly what might be too busy to notice. When it
+   * elapses native answers the terminal itself with `timeoutStatus`: a definite
+   * refusal reaches the terminal as "this card cannot do that", whereas silence
+   * makes it wait for its own timeout and then report a hardware fault.
+   */
+  readonly timeoutMs: number;
+  /** Status word native sends when the deadline elapses, e.g. `0x6f00`. */
+  readonly timeoutStatus: number;
+  /**
+   * AIDs to register for the app's HCE service, replacing the manifest's.
+   *
+   * `null` leaves the statically declared ones alone. Registering at runtime is
+   * what makes an AID change not require a rebuild, which is the whole reason it
+   * is here.
+   */
+  readonly aids: readonly string[] | null;
+}
+
 /** Error shape native attaches to an event, mirroring `NfcError`. */
 export interface NativeErrorPayload {
   /** Must be a value of `NfcErrorCode`; validated on arrival. */
@@ -235,12 +267,34 @@ export interface NativeBackgroundTagEvent {
   readonly tag: NativeTagInfo;
 }
 
+/**
+ * One command APDU from a terminal, awaiting an answer.
+ *
+ * The APDU travels as hex rather than bytes, deliberately. Events carrying a
+ * `ByteArray` have a history of arriving on Android as an opaque string id
+ * (expo/expo#29566), and this is the one path where a second round trip to fetch
+ * the bytes would cost real latency -- a terminal is holding the link open. A
+ * command APDU is at most a few hundred bytes, so hex is cheap here in a way it
+ * would not be for a tag payload.
+ */
+export interface NativeHceCommandEvent {
+  readonly requestId: string;
+  readonly commandHex: string;
+}
+
+export interface NativeHceDeactivatedEvent {
+  /** One of `HCE_DEACTIVATION_REASONS`; validated on arrival. */
+  readonly reason: string;
+}
+
 export interface NativeEventMap {
   readonly onTagDiscovered: (event: NativeTagDiscoveredEvent) => void;
   readonly onBackgroundTag: (event: NativeBackgroundTagEvent) => void;
   readonly onTagLost: (event: NativeTagLostEvent) => void;
   readonly onSessionInvalidated: (event: NativeSessionInvalidatedEvent) => void;
   readonly onAvailabilityChanged: (event: NativeAvailabilityEvent) => void;
+  readonly onHceCommand: (event: NativeHceCommandEvent) => void;
+  readonly onHceDeactivated: (event: NativeHceDeactivatedEvent) => void;
 }
 
 export type NativeEventName = keyof NativeEventMap;
@@ -251,6 +305,8 @@ export const NATIVE_EVENT_NAMES = [
   'onTagLost',
   'onSessionInvalidated',
   'onAvailabilityChanged',
+  'onHceCommand',
+  'onHceDeactivated',
 ] as const satisfies readonly NativeEventName[];
 
 /* -------------------------------------------------------------------------- */
@@ -307,4 +363,20 @@ export interface NativeNfcKitModule {
 
   /** The tag that launched the app, consumed once. */
   takeLaunchTag(): Promise<NativeTagInfo | null>;
+
+  // Card emulation. Android only; every one of these rejects
+  // `unsupportedPlatform` on iOS.
+
+  /** Whether this device can emulate a card at all. */
+  isHceSupported(): Promise<boolean>;
+  startHce(options: NativeHceOptions): Promise<void>;
+  stopHce(): Promise<void>;
+  /**
+   * Answers one command.
+   *
+   * Resolves `false` when the command had already been answered -- because the
+   * deadline elapsed first, or because the terminal went away. Not an error: it
+   * is a race the caller cannot avoid and does not need to handle.
+   */
+  respondToHce(requestId: string, response: Uint8Array): Promise<boolean>;
 }

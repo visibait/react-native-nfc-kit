@@ -116,6 +116,15 @@ const config: Config = {
       lines: 100,
       statements: 100,
     },
+    // Card emulation is byte logic over an APDU exchange, so the emulated Type 4
+    // tag and the framing around it are as testable as the codec: a terminal's
+    // whole conversation can be played through them without a device.
+    './src/hce/': {
+      branches: 100,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
     // The hooks are held to 100% too, including their unmount races: every
     // branch there is a state update that either happens after the component is
     // gone or does not, and both outcomes are reachable from a test.
