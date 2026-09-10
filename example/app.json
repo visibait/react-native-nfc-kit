@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "example",
+    "slug": "example",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nfckit.example"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.nfckit.example"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "react-native-nfc-kit",
+        {
+          "readerUsageDescription": "Hold your card near the top of the phone.",
+          "ios": {
+            "formats": ["ndef", "tag"]
+          },
+          "android": {
+            "requireNfcHardware": false
+          }
+        }
+      ]
+    ]
+  }
+}

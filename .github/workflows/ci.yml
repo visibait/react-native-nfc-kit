@@ -76,3 +76,79 @@ jobs:
       # broken exports map or an ESM/CJS mismatch fails here rather than in a
       # consumer's bundler. This is how packages ship untranspiled output.
       - run: npm run verify:package
+
+  android:
+    name: Android build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install and build the library
+        run: npm ci --ignore-scripts && npm run build
+
+      - name: Install the example app
+        working-directory: example
+        run: npm install --no-audit --no-fund
+
+      # prebuild runs the config plugin, so a plugin that produces an invalid
+      # manifest or entitlements file fails here rather than in a user's project.
+      - name: Prebuild (runs the config plugin)
+        working-directory: example
+        run: npx expo prebuild -p android --clean
+        env:
+          EXPO_NO_TELEMETRY: '1'
+
+      - name: Check the plugin wrote what it should
+        working-directory: example
+        run: |
+          set -e
+          manifest=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.NFC' "$manifest"
+          grep -q 'android:name="android.hardware.nfc" android:required="false"' "$manifest"
+          grep -q 'android:launchMode="singleTop"' "$manifest"
+          echo "AndroidManifest contains the NFC permission, the optional hardware feature and singleTop."
+
+      - name: Compile the Kotlin module
+        working-directory: example/android
+        run: ./gradlew :react-native-nfc-kit:compileDebugKotlin
+
+      - name: Assemble the example APK
+        working-directory: example/android
+        run: ./gradlew :app:assembleDebug
+
+      # Autolinking is what actually puts the module in the app. Compiling proves
+      # the Kotlin is valid; this proves it is reachable at runtime.
+      - name: Check the module is registered by autolinking
+        working-directory: example
+        run: |
+          set -e
+          list=node_modules/expo/android/build/generated/expo/src/main/java/expo/modules/ExpoModulesPackageList.kt
+          grep -q 'com.nfckit.NfcKitModule' "$list"
+          echo "NfcKitModule is registered in the generated Expo modules list."
+
+  example-types:
+    name: Example app typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      # Builds first: the example imports the package through its exports map, so
+      # this checks the published type surface rather than the source.
+      - run: npm run build
+      - working-directory: example
+        run: npm install --no-audit --no-fund
+      - working-directory: example
+        run: npx tsc --noEmit

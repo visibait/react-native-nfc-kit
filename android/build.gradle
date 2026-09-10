@@ -1,0 +1,24 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+// The Expo module Gradle plugin supplies compileSdk, minSdk, the Kotlin and AGP
+// versions, and the expo-modules-core dependency, all pinned to the Expo SDK the
+// app is on. Hardcoding them here is how a library ends up asserting minSdk 16
+// and AGP 1.5.0 years after either was current.
+group = 'com.nfckit'
+version = '0.0.0'
+
+android {
+  namespace 'com.nfckit'
+
+  defaultConfig {
+    versionCode 1
+    versionName '0.0.0'
+  }
+
+  lintOptions {
+    abortOnError false
+  }
+}

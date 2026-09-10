@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.NFC" />
+
+  <!--
+    required="false" on purpose: with true, Google Play hides the app from every
+    device without an NFC controller. Most apps use NFC as one feature among
+    many and should stay installable. An app that genuinely cannot work without
+    it sets requireNfcHardware in the config plugin, which overrides this.
+  -->
+  <uses-feature android:name="android.hardware.nfc" android:required="false" />
+</manifest>

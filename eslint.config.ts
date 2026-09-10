@@ -48,6 +48,7 @@ export default defineConfig([
     'coverage/**',
     'node_modules/**',
     '.tmp/**',
+    'example/node_modules/**',
     'example/ios/**',
     'example/android/**',
     'example/.expo/**',
