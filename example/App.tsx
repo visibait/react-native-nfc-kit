@@ -136,6 +136,11 @@ export default function App() {
             label="Background tags"
             value={String(availability?.capabilities?.backgroundReading ?? '…')}
           />
+          <Row label="Card emulation" value={String(availability?.capabilities?.hce ?? '…')} />
+          <Row
+            label="Observe mode"
+            value={String(availability?.capabilities?.observeMode ?? '…')}
+          />
         </Section>
 
         <View style={styles.buttons}>

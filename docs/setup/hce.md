@@ -95,10 +95,80 @@ of which a config plugin can arrange, and the second of which is a flow your app
 has to run deliberately. Everything here uses the `other` category, which is the
 right one for access control and ticketing.
 
-**Observe mode and polling loop filters** (Android 15, API 35). Both are card
-emulation features: observe mode lets the device acknowledge a terminal without
-answering until the app allows it. They belong with this milestone's successor,
-where they can be exercised against a real terminal rather than added blind.
+**`setDiscoveryTechnology`** (Android 15, API 35). It restricts what the phone
+polls for and listens to, but the only way to use it for reading is to give up
+reader mode and take tags through intents instead — which is the acquisition model
+this library deliberately does not use, because it brings back the `onPause`
+churn and the two-different-event-sequences problem. Restricting _emulation_ is
+what `preferSelf` and observe mode below already do.
+
+## Not answering straight away
+
+By default a card answers the moment a terminal selects it. That is wrong for
+anything that authorises something: the user should be asked first, and asking
+takes time the terminal is not going to wait for.
+
+Observe mode is the platform's answer. The phone acknowledges the reader — so the
+reader does not keep polling and give up — but the card stays silent until the app
+says otherwise. Combined with the polling loop frames, an app can tell a reader is
+there before any of its own code has been selected:
+
+```ts
+const session = await hce.start({
+  onCommand: (apdu) => card.handle(apdu),
+  observeMode: true,
+  onPollingFrames: (frames) => {
+    // A reader is present. Nothing has been answered yet.
+    if (frames.some((frame) => frame.type === 'a')) askUserToConfirm();
+  },
+  onDeactivated: () => {
+    // Back to silent for the next reader.
+    void session.setObserveMode(true);
+  },
+});
+
+// When the user confirms:
+await session.setObserveMode(false);
+```
+
+Three things worth knowing:
+
+- **It is not universally available.** Android 15 and later, _and_ a hardware
+  capability on top of that: plenty of API 35 devices answer `false`. Check
+  `nfc.capabilities.observeMode`, and read `session.observeMode` rather than
+  assuming your request took effect — believing the card is silent while it is
+  answering is the worst outcome available here, because the user is never asked
+  and the transaction happens anyway.
+- **The platform grants it only to the service it prefers.** That is what
+  `preferSelf` (on by default) asks for, and it needs a foreground activity, so
+  `session.preferred` tells you whether it was granted. Without it, observe mode
+  and polling frames are both unavailable.
+- **It is left off when the session stops.** Leaving it on would hold every other
+  card emulation app on the device silent, and nothing else would turn it off.
+
+### Polling loop filters
+
+By default a preferred service sees the frames while the app is in front.
+Registering filters asks for specific ones:
+
+```ts
+await hce.start({
+  onCommand,
+  pollingLoopFilters: [
+    { pattern: '6a' }, // frames whose data starts with these bytes
+    { pattern: '6a.*', isPattern: true, autoTransact: true },
+  ],
+});
+```
+
+`autoTransact` tells the platform to leave observe mode by itself on a match. That
+is the low-latency route for a reader you already trust, and it gives up the
+confirmation step observe mode exists to allow — a decision about trust rather than
+about speed.
+
+A frame's `gain` is vendor-specific, `-1` when the controller does not report it,
+and not a distance. Its `timestamp` is the platform's own monotonic value: sound
+for ordering frames and measuring the gap between them, and nothing else.
 
 ## Bare React Native
 
@@ -201,3 +271,7 @@ adb shell dumpsys nfc | grep -A10 "Registered HCE services"
 Then tap a terminal. If nothing happens, in order of likelihood: the terminal is
 selecting a different AID, the app is not in the foreground, or
 `requireDeviceUnlock` is `true` and the phone is locked.
+
+For observe mode specifically, `session.preferred` being `false` explains most
+failures: the platform will not hand observe mode or polling frames to a service
+it is not currently routing taps to.

@@ -237,8 +237,8 @@ release requirement, not an afterthought.
 | M5    | Config plugin, bare React Native, React hooks                         | done   |
 | M6    | Continuous reading, `onTagLost`, observe mode, background tag reading | next   |
 | M7    | Host card emulation (Android)                                         | done   |
-| M8    | Observe mode, polling loop filters, Apple VAS                         | next   |
-| M9    | Web NFC shim, documentation site, migration guide                     |        |
+| M8    | Observe mode, polling loop frames                                     | done   |
+| M9    | Web NFC shim, documentation site, migration guide                     | next   |
 | M10   | Device matrix pass, soak tests, `1.0.0`                               |        |
 
 Out of scope, deliberately: Apple's NFC & SE Platform (`CredentialSession`). It requires

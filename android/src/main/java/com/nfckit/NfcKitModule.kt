@@ -9,6 +9,7 @@ import android.provider.Settings
 import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.nfc.cardemulation.CardEmulation
+import android.nfc.cardemulation.HostApduService
 import com.nfckit.background.IntentTags
 import com.nfckit.hce.HceBridge
 import com.nfckit.hce.NfcKitHostApduService
@@ -29,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Bumped together with `CONTRACT_VERSION` in `src/native/contract.ts`. */
-private const val CONTRACT_VERSION = 3
+private const val CONTRACT_VERSION = 4
 
 private const val EVENT_TAG_DISCOVERED = "onTagDiscovered"
 private const val EVENT_BACKGROUND_TAG = "onBackgroundTag"
@@ -38,12 +39,26 @@ private const val EVENT_SESSION_INVALIDATED = "onSessionInvalidated"
 private const val EVENT_AVAILABILITY_CHANGED = "onAvailabilityChanged"
 private const val EVENT_HCE_COMMAND = "onHceCommand"
 private const val EVENT_HCE_DEACTIVATED = "onHceDeactivated"
+private const val EVENT_POLLING_FRAMES = "onPollingFrames"
+
+/** The API level that added observe mode and polling loop frames. */
+private const val OBSERVE_MODE_SDK = 35
+
+/** Mirrors `NativePollingLoopFilter`. */
+class PollingLoopFilterOptions : Record {
+  @Field val pattern: String = ""
+  @Field val isPattern: Boolean = false
+  @Field val autoTransact: Boolean = false
+}
 
 /** Mirrors `NativeHceOptions`. */
 class HceOptions : Record {
   @Field val timeoutMs: Int = 1_000
   @Field val timeoutStatus: Int = 0x6F00
   @Field val aids: List<String>? = null
+  @Field val preferSelf: Boolean = true
+  @Field val observeMode: Boolean = false
+  @Field val pollingLoopFilters: List<PollingLoopFilterOptions>? = null
 }
 
 /** Mirrors `NativeSessionOptions`. The iOS fields are accepted and ignored here. */
@@ -149,6 +164,12 @@ class NfcKitModule : Module() {
         // service and AIDs in its manifest, which is the config plugin's job.
         // This says the controller implements host card emulation.
         "hce" to hasHceFeature(),
+        // Asked of the controller, not inferred from the API level: observe mode
+        // is a hardware capability and plenty of API 35 devices do not have it.
+        "observeMode" to isObserveModeSupported(),
+        // Polling frames only need the platform, since the callback that carries
+        // them is on the service rather than on the controller.
+        "pollingFrames" to (Build.VERSION.SDK_INT >= OBSERVE_MODE_SDK),
         // Whether the app actually receives them still depends on the intent
         // filters in its manifest, which is the config plugin's job. This says
         // the module can deliver one when the system dispatches it.
@@ -164,6 +185,7 @@ class NfcKitModule : Module() {
       EVENT_AVAILABILITY_CHANGED,
       EVENT_HCE_COMMAND,
       EVENT_HCE_DEACTIVATED,
+      EVENT_POLLING_FRAMES,
     )
 
     /* -- Availability ---------------------------------------------------- */
@@ -305,6 +327,38 @@ class NfcKitModule : Module() {
 
     AsyncFunction("isHceSupported") { hasHceFeature() }
 
+    AsyncFunction("isObserveModeSupported") { isObserveModeSupported() }
+
+    AsyncFunction("isObserveModeEnabled") {
+      Build.VERSION.SDK_INT >= OBSERVE_MODE_SDK && readerMode.requireAdapter().isObserveModeEnabled
+    }
+
+    /**
+     * Holds the card silent, or lets it answer again.
+     *
+     * The platform grants this only to the service it currently prefers, which is
+     * why `startHce` claims preferred-service status. `false` here means the
+     * platform refused, not that nothing was attempted -- reporting it beats an
+     * app believing its card is silent when it is not.
+     */
+    AsyncFunction("setObserveModeEnabled") { enabled: Boolean ->
+      if (Build.VERSION.SDK_INT < OBSERVE_MODE_SDK) {
+        throw NfcException(
+          NfcErrorCode.UNSUPPORTED_PLATFORM,
+          "Observe mode needs Android 15 (API 35); this device is API ${Build.VERSION.SDK_INT}. " +
+            "Guard with capabilities.observeMode.",
+        )
+      }
+      val adapter = readerMode.requireAdapter()
+      if (!adapter.isObserveModeSupported) {
+        throw NfcException(
+          NfcErrorCode.HCE_UNSUPPORTED,
+          "This device's NFC controller does not implement observe mode.",
+        )
+      }
+      adapter.setObserveModeEnabled(enabled)
+    }
+
     AsyncFunction("startHce") { options: HceOptions ->
       if (!hasHceFeature()) {
         throw NfcException(
@@ -320,6 +374,7 @@ class NfcKitModule : Module() {
       }
 
       options.aids?.let { registerAids(it) }
+      options.pollingLoopFilters?.let { registerPollingLoopFilters(it) }
 
       val timeoutResponse = byteArrayOf(
         ((options.timeoutStatus shr 8) and 0xFF).toByte(),
@@ -338,13 +393,32 @@ class NfcKitModule : Module() {
           override fun onDeactivated(reason: Int) {
             sendEvent(EVENT_HCE_DEACTIVATED, mapOf("reason" to deactivationReason(reason)))
           }
+
+          override fun onPollingFrames(frames: List<Map<String, Any?>>) {
+            sendEvent(EVENT_POLLING_FRAMES, mapOf("frames" to frames))
+          }
         },
         timeoutMs = options.timeoutMs.toLong(),
         timeoutResponse = timeoutResponse,
       )
+
+      // Claimed after attaching, so a tap landing during setup is answered by the
+      // handler rather than by the fallback.
+      val preferred = if (options.preferSelf) preferSelf() else false
+      val observing = if (options.observeMode) enterObserveMode() else false
+
+      mapOf("preferred" to preferred, "observeMode" to observing)
     }
 
     AsyncFunction("stopHce") {
+      // Observe mode first: leaving it on would hold every other card emulation
+      // app on the device silent as well, and nothing else would turn it off.
+      if (Build.VERSION.SDK_INT >= OBSERVE_MODE_SDK) {
+        runCatching { readerMode.requireAdapter().setObserveModeEnabled(false) }
+      }
+      currentActivityOrNull()?.let { activity ->
+        runCatching { cardEmulation()?.unsetPreferredService(activity) }
+      }
       HceBridge.detach()
     }
 
@@ -445,6 +519,109 @@ class NfcKitModule : Module() {
       "ios" to null,
     )
 
+  private fun cardEmulation(): CardEmulation? =
+    nfcAdapter()?.let { CardEmulation.getInstance(it) }
+
+  private fun isObserveModeSupported(): Boolean =
+    Build.VERSION.SDK_INT >= OBSERVE_MODE_SDK && nfcAdapter()?.isObserveModeSupported == true
+
+  /**
+   * Asks the platform to route taps to this app's service while it is in front.
+   *
+   * Without it the user's default wallet keeps the tap, which is the right default
+   * for a phone in general and the wrong one for an app the user is looking at. It
+   * is also what the platform requires before it will let the app control observe
+   * mode or see polling frames.
+   *
+   * The platform scopes this to a foreground activity and drops it on its own when
+   * the activity goes, so there is nothing to unwind beyond `unsetPreferredService`.
+   * Returns whether it was actually claimed, rather than assuming.
+   */
+  private fun preferSelf(): Boolean {
+    val activity = currentActivityOrNull() ?: return false
+    val emulation = cardEmulation() ?: return false
+    val component = ComponentName(activity, NfcKitHostApduService::class.java)
+
+    return runCatching { emulation.setPreferredService(activity, component) }.getOrDefault(false)
+  }
+
+  private fun enterObserveMode(): Boolean {
+    if (!isObserveModeSupported()) {
+      return false
+    }
+    val adapter = readerMode.requireAdapter()
+    val emulation = cardEmulation() ?: return false
+    val context = appContext.reactContext ?: return false
+
+    // Also asked for as the service's default, so a tap arriving before the app
+    // has finished starting is held rather than answered.
+    runCatching {
+      emulation.setShouldDefaultToObserveModeForService(
+        ComponentName(context, NfcKitHostApduService::class.java),
+        true,
+      )
+    }
+
+    return runCatching { adapter.setObserveModeEnabled(true) }.getOrDefault(false)
+  }
+
+  /**
+   * Registers the polling loop frames this app's service wants to see.
+   *
+   * A plain filter matches a frame's data as a hexadecimal prefix; a pattern one
+   * matches it as a regular expression. `autoTransact` tells the platform to leave
+   * observe mode by itself when a frame matches, which is the low-latency route
+   * for a reader the app already trusts -- at the cost of the confirmation step
+   * observe mode exists to allow.
+   */
+  private fun registerPollingLoopFilters(filters: List<PollingLoopFilterOptions>) {
+    if (Build.VERSION.SDK_INT < OBSERVE_MODE_SDK) {
+      throw NfcException(
+        NfcErrorCode.UNSUPPORTED_PLATFORM,
+        "Polling loop filters need Android 15 (API 35); this device is API " +
+          "${Build.VERSION.SDK_INT}. Guard with capabilities.pollingFrames.",
+      )
+    }
+
+    val context = appContext.reactContext
+      ?: throw NfcException(NfcErrorCode.INTERNAL_ERROR, "No context to register filters with.")
+    val emulation = cardEmulation()
+      ?: throw NfcException(NfcErrorCode.NFC_UNSUPPORTED, "This device has no NFC adapter.")
+    val component = ComponentName(context, NfcKitHostApduService::class.java)
+
+    for (filter in filters) {
+      val registered = try {
+        if (filter.isPattern) {
+          emulation.registerPollingLoopPatternFilterForService(
+            component,
+            filter.pattern,
+            filter.autoTransact,
+          )
+        } else {
+          emulation.registerPollingLoopFilterForService(
+            component,
+            filter.pattern,
+            filter.autoTransact,
+          )
+        }
+      } catch (cause: RuntimeException) {
+        throw NfcException.from(
+          NfcErrorCode.INVALID_ARGUMENT,
+          "The system refused the polling loop filter \"${filter.pattern}\".",
+          cause,
+        )
+      }
+
+      if (!registered) {
+        throw NfcException(
+          NfcErrorCode.INVALID_ARGUMENT,
+          "The system refused the polling loop filter \"${filter.pattern}\". A plain filter is " +
+            "hexadecimal; a pattern filter is a regular expression over hexadecimal.",
+        )
+      }
+    }
+  }
+
   private fun hasHceFeature(): Boolean =
     appContext.reactContext
       ?.packageManager
@@ -453,7 +630,7 @@ class NfcKitModule : Module() {
   /** Android's deactivation reasons, as names rather than as integers. */
   private fun deactivationReason(reason: Int): String =
     when (reason) {
-      HostApduDeactivation.DESELECTED -> "deselected"
+      HostApduService.DEACTIVATION_DESELECTED -> "deselected"
       else -> "linkLoss"
     }
 
@@ -510,16 +687,4 @@ class NfcKitModule : Module() {
     // context that no longer exists, and the terminal waiting for the deadline.
     HceBridge.detach()
   }
-}
-
-/**
- * `HostApduService`'s deactivation constants, named locally.
- *
- * Referenced by value rather than through the class so this file does not have to
- * import the service to read two integers, and so the mapping is visible next to
- * the names it produces.
- */
-private object HostApduDeactivation {
-  const val LINK_LOSS = 0
-  const val DESELECTED = 1
 }

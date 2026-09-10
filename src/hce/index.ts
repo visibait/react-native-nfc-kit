@@ -26,6 +26,7 @@ import { platform, getNativeModule } from '../native/module.js';
 import {
   emulateNdef as emulateNdefWith,
   isHceSupported as isHceSupportedWith,
+  isObserveModeSupported as isObserveModeSupportedWith,
   startHce as startHceWith,
   type EmulateNdefOptions,
   type HceOptions,
@@ -49,6 +50,17 @@ export const hce = {
     return isHceSupportedWith(deps());
   },
 
+  /**
+   * Whether the card can be held silent while a reader polls.
+   *
+   * Android 15 and later, and a hardware capability on top of that. This is what
+   * makes "notice the reader, ask the user, then answer" possible; without it a
+   * card answers the moment it is selected.
+   */
+  isObserveModeSupported(): Promise<boolean> {
+    return isObserveModeSupportedWith(deps());
+  },
+
   /** Starts emulating a card with your own command handler. */
   start(options: HceOptions): Promise<HceSession> {
     return startHceWith(deps(), options);
@@ -66,6 +78,8 @@ export type {
   HceOptions,
   HceSession,
   NdefEmulationSession,
+  PollingFrame,
+  PollingLoopFilter,
 } from './session.js';
 
 /* -------------------------------------------------------------------------- */
@@ -96,4 +110,5 @@ export {
 } from './type4.js';
 export type { Type4Card, Type4CardOptions } from './type4.js';
 
-export type { HceDeactivationReason } from '../native/contract.js';
+export { POLLING_FRAME_TYPES } from '../native/contract.js';
+export type { HceDeactivationReason, PollingFrameType } from '../native/contract.js';

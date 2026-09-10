@@ -6,9 +6,11 @@ import { Instruction, SELECT_BY_NAME, StatusWord, statusResponse } from '../apdu
 import {
   emulateNdef,
   isHceSupported,
+  isObserveModeSupported,
   resetHceForTests,
   startHce,
   type HceDependencies,
+  type PollingFrame,
 } from '../session.js';
 import { NDEF_APPLICATION_AID } from '../type4.js';
 
@@ -59,6 +61,9 @@ describe('startHce', () => {
       timeoutMs: 1_000,
       timeoutStatus: StatusWord.unknown,
       aids: null,
+      preferSelf: true,
+      observeMode: false,
+      pollingLoopFilters: null,
     });
     await session.stop();
   });
@@ -303,6 +308,208 @@ describe('startHce', () => {
   });
 });
 
+describe('preferred service', () => {
+  it('asks for it by default, and reports whether it was granted', async () => {
+    // Without it the user's default wallet keeps the tap, which is right for a
+    // phone in general and wrong for an app the user is looking at.
+    const session = await startHce(deps(native), { onCommand: () => statusResponse(0x9000) });
+
+    expect(native.hceOptions?.preferSelf).toBe(true);
+    expect(session.preferred).toBe(true);
+    await session.stop();
+  });
+
+  it('reports honestly when the platform refused', async () => {
+    // Typically because there is no foreground activity. Observe mode and polling
+    // frames are unavailable in that state, so an app needs to be able to tell.
+    native.hcePreferred = false;
+    const session = await startHce(deps(native), { onCommand: () => statusResponse(0x9000) });
+
+    expect(session.preferred).toBe(false);
+    await session.stop();
+  });
+
+  it('can be turned off', async () => {
+    const session = await startHce(deps(native), {
+      onCommand: () => statusResponse(0x9000),
+      preferSelf: false,
+    });
+
+    expect(native.hceOptions?.preferSelf).toBe(false);
+    expect(session.preferred).toBe(false);
+    await session.stop();
+  });
+});
+
+describe('observe mode', () => {
+  beforeEach(() => {
+    native.observeModeSupported = true;
+  });
+
+  it('reports what the controller says', async () => {
+    native.observeModeSupported = false;
+
+    await expect(isObserveModeSupported(deps(native))).resolves.toBe(false);
+  });
+
+  it('starts silent when asked', async () => {
+    const session = await startHce(deps(native), {
+      onCommand: () => statusResponse(0x9000),
+      observeMode: true,
+    });
+
+    expect(session.observeMode).toBe(true);
+    await session.stop();
+  });
+
+  it('does not claim to be silent on a device that cannot be', async () => {
+    // Believing the card is held while it is answering is the worst outcome here:
+    // the user is never asked and the transaction happens anyway.
+    native.observeModeSupported = false;
+    const session = await startHce(deps(native), {
+      onCommand: () => statusResponse(0x9000),
+      observeMode: true,
+    });
+
+    expect(session.observeMode).toBe(false);
+    await session.stop();
+  });
+
+  it('lets the card answer once the app allows it', async () => {
+    const session = await startHce(deps(native), {
+      onCommand: () => statusResponse(0x9000),
+      observeMode: true,
+    });
+
+    await expect(session.setObserveMode(false)).resolves.toBe(true);
+
+    expect(session.observeMode).toBe(false);
+    expect(native.observeModeEnabled).toBe(false);
+    await session.stop();
+  });
+
+  it('keeps reporting silent when the platform refuses the change', async () => {
+    const session = await startHce(deps(native), {
+      onCommand: () => statusResponse(0x9000),
+      observeMode: true,
+    });
+
+    // The platform grants this only to the service it prefers. Recording the
+    // requested value rather than the accepted one would leave the app thinking
+    // its card is answering while it is still silent.
+    native.observeModeAllowed = false;
+    await expect(session.setObserveMode(false)).resolves.toBe(false);
+
+    expect(session.observeMode).toBe(true);
+    await session.stop();
+  });
+
+  it('is off again after the session stops', async () => {
+    // Left on, it would hold every other card emulation app on the device silent,
+    // and nothing else would turn it off.
+    const session = await startHce(deps(native), {
+      onCommand: () => statusResponse(0x9000),
+      observeMode: true,
+    });
+
+    await session.stop();
+
+    expect(native.observeModeEnabled).toBe(false);
+  });
+});
+
+describe('polling frames', () => {
+  it('registers the filters it was given', async () => {
+    const session = await startHce(deps(native), {
+      onCommand: () => statusResponse(0x9000),
+      pollingLoopFilters: [
+        { pattern: '6a' },
+        { pattern: '6a.*', isPattern: true, autoTransact: true },
+      ],
+    });
+
+    expect(native.hceOptions?.pollingLoopFilters).toEqual([
+      { pattern: '6a', isPattern: false, autoTransact: false },
+      { pattern: '6a.*', isPattern: true, autoTransact: true },
+    ]);
+    await session.stop();
+  });
+
+  it('delivers frames with their bytes decoded', async () => {
+    const seen: PollingFrame[][] = [];
+    const session = await startHce(deps(native), {
+      onCommand: () => statusResponse(0x9000),
+      onPollingFrames: (frames) => seen.push([...frames]),
+    });
+
+    native.emitPollingFrames([
+      { type: 'a', dataHex: '26', gain: 12, timestamp: 100 },
+      { type: 'off', dataHex: '', gain: -1, timestamp: 220 },
+    ]);
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.[0]).toEqual({
+      type: 'a',
+      data: new Uint8Array([0x26]),
+      gain: 12,
+      timestamp: 100,
+      triggeredAutoTransact: false,
+    });
+    expect(seen[0]?.[1]?.type).toBe('off');
+    await session.stop();
+  });
+
+  it('calls an unrecognised frame type unknown rather than dropping the frame', async () => {
+    // A newer platform can report a type this build has never heard of, and the
+    // frame still says a reader is there.
+    const seen: PollingFrame[] = [];
+    const session = await startHce(deps(native), {
+      onCommand: () => statusResponse(0x9000),
+      onPollingFrames: (frames) => seen.push(...frames),
+    });
+
+    native.emitPollingFrames([{ type: 'v', dataHex: 'ff' }]);
+
+    expect(seen[0]?.type).toBe('unknown');
+    expect(seen[0]?.data).toEqual(new Uint8Array([0xff]));
+    await session.stop();
+  });
+
+  it('reports a frame that made the platform answer on its own', async () => {
+    const seen: PollingFrame[] = [];
+    const session = await startHce(deps(native), {
+      onCommand: () => statusResponse(0x9000),
+      onPollingFrames: (frames) => seen.push(...frames),
+    });
+
+    native.emitPollingFrames([{ type: 'a', dataHex: '26', triggeredAutoTransact: true }]);
+
+    expect(seen[0]?.triggeredAutoTransact).toBe(true);
+    await session.stop();
+  });
+
+  it('stops delivering once the session stops', async () => {
+    const onPollingFrames = jest.fn();
+    const session = await startHce(deps(native), {
+      onCommand: () => statusResponse(0x9000),
+      onPollingFrames,
+    });
+
+    await session.stop();
+    native.emitPollingFrames([{ type: 'a', dataHex: '26' }]);
+
+    expect(onPollingFrames).not.toHaveBeenCalled();
+    expect(native.listenerCount('onPollingFrames')).toBe(0);
+  });
+
+  it('is harmless with no handler attached', async () => {
+    const session = await startHce(deps(native), { onCommand: () => statusResponse(0x9000) });
+
+    expect(() => native.emitPollingFrames([{ type: 'a', dataHex: '26' }])).not.toThrow();
+    await session.stop();
+  });
+});
+
 describe('stopping', () => {
   it('detaches from native and stops answering', async () => {
     const handler = jest.fn(() => statusResponse(StatusWord.ok));
@@ -421,6 +628,22 @@ describe('emulateNdef', () => {
 
     const response = decodeResponseApdu(native.hceResponseTo(requestId) as Uint8Array);
     expect(response.status).toBe(StatusWord.conditionsNotSatisfied);
+    await session.stop();
+  });
+
+  it('exposes the same emulation controls as a raw session', async () => {
+    // `emulateNdef` is a convenience over `start`, not a narrower thing: an app
+    // that wants to hold the card silent should not have to drop down to raw
+    // APDUs to do it.
+    native.observeModeSupported = true;
+    const session = await emulateNdef(deps(native), message, { observeMode: true });
+
+    expect(session.preferred).toBe(true);
+    expect(session.observeMode).toBe(true);
+
+    await expect(session.setObserveMode(false)).resolves.toBe(true);
+    expect(session.observeMode).toBe(false);
+
     await session.stop();
   });
 

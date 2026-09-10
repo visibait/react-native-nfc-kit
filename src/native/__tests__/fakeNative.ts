@@ -17,6 +17,9 @@ import type {
   NativeHceCommandEvent,
   NativeHceDeactivatedEvent,
   NativeHceOptions,
+  NativeHceStarted,
+  NativePollingFrame,
+  NativePollingFramesEvent,
   NativeCapabilities,
   NativeEventMap,
   NativeEventName,
@@ -48,6 +51,8 @@ const DEFAULT_CAPABILITIES: NativeCapabilities = {
   tagLost: 'polled',
   perSessionConfig: false,
   hce: false,
+  observeMode: false,
+  pollingFrames: false,
   backgroundReading: true,
 };
 
@@ -207,6 +212,19 @@ export class FakeNativeModule implements NativeNfcKitModule {
     return requestId;
   }
 
+  emitPollingFrames(frames: readonly Partial<NativePollingFrame>[]): void {
+    this.emit('onPollingFrames', {
+      frames: frames.map((frame) => ({
+        type: 'a',
+        dataHex: '',
+        gain: -1,
+        timestamp: 0,
+        triggeredAutoTransact: false,
+        ...frame,
+      })),
+    } satisfies NativePollingFramesEvent);
+  }
+
   emitHceDeactivated(reason: 'linkLoss' | 'deselected' = 'linkLoss'): void {
     this.emit('onHceDeactivated', { reason } satisfies NativeHceDeactivatedEvent);
   }
@@ -333,6 +351,11 @@ export class FakeNativeModule implements NativeNfcKitModule {
 
   hceSupported = true;
   hceStarted = false;
+  observeModeSupported = false;
+  observeModeEnabled = false;
+  /** Whether the platform will let the caller change observe mode. */
+  observeModeAllowed = true;
+  hcePreferred = true;
   hceOptions: NativeHceOptions | null = null;
   readonly hceCommands: string[] = [];
   readonly hceResponses = new Map<string, Uint8Array>();
@@ -343,14 +366,39 @@ export class FakeNativeModule implements NativeNfcKitModule {
     return this.record('isHceSupported', [], this.hceSupported);
   }
 
-  startHce(options: NativeHceOptions): Promise<void> {
+  startHce(options: NativeHceOptions): Promise<NativeHceStarted> {
     this.hceStarted = true;
     this.hceOptions = options;
-    return this.record('startHce', [options], undefined);
+    const preferred = options.preferSelf && this.hcePreferred;
+    if (options.observeMode && this.observeModeSupported) {
+      this.observeModeEnabled = true;
+    }
+    return this.record('startHce', [options], {
+      preferred,
+      observeMode: this.observeModeEnabled,
+    } satisfies NativeHceStarted);
+  }
+
+  isObserveModeSupported(): Promise<boolean> {
+    return this.record('isObserveModeSupported', [], this.observeModeSupported);
+  }
+
+  isObserveModeEnabled(): Promise<boolean> {
+    return this.record('isObserveModeEnabled', [], this.observeModeEnabled);
+  }
+
+  setObserveModeEnabled(enabled: boolean): Promise<boolean> {
+    // The platform grants this only to the service it prefers, so refusing is a
+    // real outcome and not an error.
+    if (this.observeModeAllowed) {
+      this.observeModeEnabled = enabled;
+    }
+    return this.record('setObserveModeEnabled', [enabled], this.observeModeAllowed);
   }
 
   stopHce(): Promise<void> {
     this.hceStarted = false;
+    this.observeModeEnabled = false;
     return this.record('stopHce', [], undefined);
   }
 

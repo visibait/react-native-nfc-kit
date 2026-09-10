@@ -1,7 +1,9 @@
 package com.nfckit.hce
 
 import android.nfc.cardemulation.HostApduService
+import android.nfc.cardemulation.PollingFrame
 import android.os.Bundle
+import androidx.annotation.RequiresApi
 
 /**
  * The service Android binds when a terminal selects one of the app's AIDs.
@@ -40,6 +42,22 @@ class NfcKitHostApduService : HostApduService() {
    */
   override fun onDeactivated(reason: Int) {
     HceBridge.deactivated(reason)
+  }
+
+  /**
+   * Called from Android 15 (API 35) with the reader's polling loop frames.
+   *
+   * A plain `override`, not a signature guessed at: `processPollingFrames` is a
+   * concrete method on `HostApduService` in the SDK this compiles against, so the
+   * compiler checks it. On older platforms nothing calls it.
+   *
+   * The frames are mapped here rather than in the module because `PollingFrame`
+   * only exists from API 35, and keeping every reference to it behind this one
+   * guarded call is what stops an older device from ever loading the class.
+   */
+  @RequiresApi(35)
+  override fun processPollingFrames(frames: MutableList<PollingFrame>) {
+    HceBridge.pollingFrames(frames.map(PollingFrames::toMap))
   }
 
   private companion object {

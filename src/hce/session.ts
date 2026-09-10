@@ -18,13 +18,16 @@
  */
 
 import { NfcError, type NfcPlatform } from '../errors.js';
-import { fromHex } from '../ndef/bytes.js';
 import {
   HCE_DEACTIVATION_REASONS,
+  POLLING_FRAME_TYPES,
   type HceDeactivationReason,
   type NativeNfcKitModule,
+  type NativePollingFrame,
+  type PollingFrameType,
 } from '../native/contract.js';
 import { callNative } from '../native/errors.js';
+import { fromHex } from '../ndef/bytes.js';
 import { StatusWord, statusResponse } from './apdu.js';
 import { createType4Card, type Type4CardOptions } from './type4.js';
 
@@ -35,6 +38,43 @@ export interface HceDependencies {
 
 /** The default deadline, in milliseconds, for answering one command. */
 export const DEFAULT_HCE_TIMEOUT_MS = 1_000;
+
+/** One polling loop frame, as the app sees it. */
+export interface PollingFrame {
+  /** `on` and `off` are the field appearing and disappearing, not technologies. */
+  readonly type: PollingFrameType;
+  readonly data: Uint8Array;
+  /**
+   * Vendor-specific field strength, or `-1` when the controller does not report
+   * it. Not comparable between devices, and not a distance.
+   */
+  readonly gain: number;
+  /**
+   * The platform's monotonic value for when the frame was seen.
+   *
+   * Sound only for ordering frames and measuring the gap between them.
+   */
+  readonly timestamp: number;
+  /** Whether this frame made the platform leave observe mode by itself. */
+  readonly triggeredAutoTransact: boolean;
+}
+
+export interface PollingLoopFilter {
+  /**
+   * A hexadecimal prefix of the frame's data, or a regular expression over
+   * hexadecimal when `isPattern` is set.
+   */
+  readonly pattern: string;
+  readonly isPattern?: boolean;
+  /**
+   * Whether the platform should leave observe mode by itself when this matches.
+   *
+   * The low-latency route for a reader the app already trusts. It also gives up
+   * the confirmation step that observe mode exists to allow, so it is a choice
+   * about trust rather than about speed alone.
+   */
+  readonly autoTransact?: boolean;
+}
 
 export interface HceOptions {
   /**
@@ -70,17 +110,85 @@ export interface HceOptions {
    * changing an AID not require a new build.
    */
   readonly aids?: readonly string[];
+  /**
+   * Whether to start with the card held silent. Defaults to `false`.
+   *
+   * Requires observe mode, which is Android 15 and later plus controller support:
+   * check `nfc.capabilities.observeMode`. Session `observeMode` reports whether it
+   * actually took effect, rather than leaving you to assume.
+   */
+  readonly observeMode?: boolean;
+  /**
+   * Called with a reader's polling loop frames, before it selects anything.
+   *
+   * This is what makes observe mode useful: the app learns a reader is there, and
+   * often which kind, while it still has the option not to answer. Android 15 and
+   * later; see `nfc.capabilities.pollingFrames`.
+   */
+  readonly onPollingFrames?: (frames: readonly PollingFrame[]) => void;
+  /** Frame patterns to be notified about. */
+  readonly pollingLoopFilters?: readonly PollingLoopFilter[];
+  /**
+   * Whether to ask the platform to route taps here while the app is in front.
+   *
+   * Defaults to `true`, and it is what stops the user's default wallet taking the
+   * tap. It also gates observe mode and polling frames, which the platform only
+   * offers to the service it prefers. Needs a foreground activity, so session
+   * `preferred` reports whether it was granted.
+   */
+  readonly preferSelf?: boolean;
 }
 
 export interface HceSession {
   /** Stops emulating. Idempotent. */
   stop(): Promise<void>;
   readonly active: boolean;
+  /**
+   * Whether the platform routed taps to this app rather than the default wallet.
+   *
+   * `false` means it did not -- usually because there was no foreground activity.
+   * Observe mode and polling frames are unavailable when this is `false`.
+   */
+  readonly preferred: boolean;
+  /** Whether the card is currently being held silent. */
+  readonly observeMode: boolean;
+  /**
+   * Holds the card silent, or lets it answer again.
+   *
+   * Resolves `false` when the platform refused. Rejects `unsupportedPlatform` on
+   * a device without observe mode, so guard with `nfc.capabilities.observeMode`.
+   */
+  setObserveMode(enabled: boolean): Promise<boolean>;
 }
 
 /** Whether this device can emulate a card at all. */
 export async function isHceSupported(deps: HceDependencies): Promise<boolean> {
   return callNative(deps.platform, 'isHceSupported', () => deps.native.isHceSupported());
+}
+
+/** Whether this controller can hold an emulated card silent while a reader polls. */
+export async function isObserveModeSupported(deps: HceDependencies): Promise<boolean> {
+  return callNative(deps.platform, 'isObserveModeSupported', () =>
+    deps.native.isObserveModeSupported(),
+  );
+}
+
+function toPollingFrameType(value: string): PollingFrameType {
+  // A newer platform can report a type this build has never heard of; calling it
+  // unknown keeps the frame rather than dropping it.
+  return (POLLING_FRAME_TYPES as readonly string[]).includes(value)
+    ? (value as PollingFrameType)
+    : 'unknown';
+}
+
+function toPollingFrame(frame: NativePollingFrame): PollingFrame {
+  return {
+    type: toPollingFrameType(frame.type),
+    data: fromHex(frame.dataHex),
+    gain: frame.gain,
+    timestamp: frame.timestamp,
+    triggeredAutoTransact: frame.triggeredAutoTransact,
+  };
 }
 
 function toDeactivationReason(value: string): HceDeactivationReason {
@@ -186,17 +294,31 @@ export async function startHce(deps: HceDependencies, options: HceOptions): Prom
     options.onDeactivated?.(toDeactivationReason(event.reason));
   });
 
+  const pollingFrames = deps.native.addListener('onPollingFrames', (event) => {
+    options.onPollingFrames?.(event.frames.map(toPollingFrame));
+  });
+
   const detach = (): void => {
     commands.remove();
     deactivations.remove();
+    pollingFrames.remove();
   };
 
+  let started;
   try {
-    await callNative(deps.platform, 'startHce', () =>
+    started = await callNative(deps.platform, 'startHce', () =>
       deps.native.startHce({
         timeoutMs,
         timeoutStatus: StatusWord.unknown,
         aids: options.aids ?? null,
+        preferSelf: options.preferSelf ?? true,
+        observeMode: options.observeMode ?? false,
+        pollingLoopFilters:
+          options.pollingLoopFilters?.map((filter) => ({
+            pattern: filter.pattern,
+            isPattern: filter.isPattern ?? false,
+            autoTransact: filter.autoTransact ?? false,
+          })) ?? null,
       }),
     );
   } catch (error) {
@@ -206,9 +328,28 @@ export async function startHce(deps: HceDependencies, options: HceOptions): Prom
     throw error;
   }
 
+  let observing = started.observeMode;
+
   const session: HceSession = {
     get active(): boolean {
       return !stopped;
+    },
+    get preferred(): boolean {
+      return started.preferred;
+    },
+    get observeMode(): boolean {
+      return observing;
+    },
+    setObserveMode: async (enabled: boolean): Promise<boolean> => {
+      const changed = await callNative(deps.platform, 'setObserveModeEnabled', () =>
+        deps.native.setObserveModeEnabled(enabled),
+      );
+      // Only believed when the platform said it took: it grants this to the
+      // service it prefers and refuses everyone else.
+      if (changed) {
+        observing = enabled;
+      }
+      return changed;
     },
     stop: async (): Promise<void> => {
       if (stopped) {
@@ -280,6 +421,13 @@ export async function emulateNdef(
     get active(): boolean {
       return session.active;
     },
+    get preferred(): boolean {
+      return session.preferred;
+    },
+    get observeMode(): boolean {
+      return session.observeMode;
+    },
+    setObserveMode: (enabled: boolean) => session.setObserveMode(enabled),
     get message(): Uint8Array {
       return card.message;
     },

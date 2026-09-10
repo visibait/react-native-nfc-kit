@@ -29,6 +29,7 @@ internal object HceBridge {
   interface Host {
     fun onCommand(requestId: String, command: ByteArray)
     fun onDeactivated(reason: Int)
+    fun onPollingFrames(frames: List<Map<String, Any?>>)
   }
 
   /**
@@ -135,6 +136,17 @@ internal object HceBridge {
     }
     entry.respond(response)
     return true
+  }
+
+  /**
+   * Forwards polling loop frames, when anything is listening.
+   *
+   * Dropped rather than queued when nothing is: a polling loop runs continuously
+   * while a reader is near, so buffering frames for a JavaScript context that may
+   * never appear would grow without bound and deliver stale information if it did.
+   */
+  fun pollingFrames(frames: List<Map<String, Any?>>) {
+    host?.onPollingFrames(frames)
   }
 
   fun deactivated(reason: Int) {

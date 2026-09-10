@@ -182,7 +182,7 @@ export const __nfcKitMock = {
 /* The mocked native surface                                                  */
 /* -------------------------------------------------------------------------- */
 
-export const contractVersion = 3;
+export const contractVersion = 4;
 
 export const capabilities = {
   platform: 'android',
@@ -191,6 +191,8 @@ export const capabilities = {
   tagLost: 'polled',
   perSessionConfig: false,
   hce: true,
+  observeMode: true,
+  pollingFrames: true,
   backgroundReading: true,
 };
 
@@ -299,8 +301,20 @@ export function isHceSupported(): Promise<boolean> {
   return record('isHceSupported', [], true);
 }
 
-export function startHce(options: unknown): Promise<void> {
-  return record('startHce', [options], undefined);
+export function startHce(options: unknown): Promise<{ preferred: boolean; observeMode: boolean }> {
+  return record('startHce', [options], { preferred: true, observeMode: false });
+}
+
+export function isObserveModeSupported(): Promise<boolean> {
+  return record('isObserveModeSupported', [], true);
+}
+
+export function isObserveModeEnabled(): Promise<boolean> {
+  return record('isObserveModeEnabled', [], false);
+}
+
+export function setObserveModeEnabled(enabled: boolean): Promise<boolean> {
+  return record('setObserveModeEnabled', [enabled], true);
 }
 
 export function stopHce(): Promise<void> {

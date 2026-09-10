@@ -63,6 +63,14 @@ export interface NfcCapabilities {
   /** iOS 26.4 and later can narrow AIDs and FeliCa system codes per session. */
   readonly perSessionConfig: boolean;
   readonly hce: boolean;
+  /**
+   * Whether an emulated card can be held silent while a reader polls.
+   *
+   * Android 15 and later, plus controller support. `false` on iOS.
+   */
+  readonly observeMode: boolean;
+  /** Whether a reader's polling loop frames reach the app. Android 15 and later. */
+  readonly pollingFrames: boolean;
   readonly backgroundReading: boolean;
 }
 
@@ -86,6 +94,8 @@ function toCapabilities(native: NativeCapabilities): NfcCapabilities {
     tagLost: native.tagLost,
     perSessionConfig: native.perSessionConfig,
     hce: native.hce,
+    observeMode: native.observeMode,
+    pollingFrames: native.pollingFrames,
     backgroundReading: native.backgroundReading,
   };
 }

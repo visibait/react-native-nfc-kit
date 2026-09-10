@@ -3,7 +3,7 @@ import UIKit
 @preconcurrency import CoreNFC
 
 /// Bumped together with `CONTRACT_VERSION` in `src/native/contract.ts`.
-private let contractVersion = 3
+private let contractVersion = 4
 
 /// Mirrors `NativeSessionOptions`. The Android fields are accepted and ignored.
 internal struct SessionOptions: Record {
@@ -107,6 +107,10 @@ public final class NfcKitModule: Module, @unchecked Sendable {
         // not happen.
         "perSessionConfig": false,
         "hce": false,
+        // Both are card emulation features, and card emulation is not available
+        // here, so there is nothing for them to apply to.
+        "observeMode": false,
+        "pollingFrames": false,
         "backgroundReading": false
       ] as [String: Any]
     }
@@ -118,7 +122,8 @@ public final class NfcKitModule: Module, @unchecked Sendable {
       "onSessionInvalidated",
       "onAvailabilityChanged",
       "onHceCommand",
-      "onHceDeactivated"
+      "onHceDeactivated",
+      "onPollingFrames"
     )
 
     /* -- Availability ---------------------------------------------------- */
@@ -255,7 +260,24 @@ public final class NfcKitModule: Module, @unchecked Sendable {
       false
     }
 
-    AsyncFunction("startHce") { (_: [String: Any]) throws -> Void in
+    AsyncFunction("isObserveModeSupported") { () -> Bool in
+      // Observe mode holds an emulated card silent, and there is no emulated card
+      // here to hold.
+      false
+    }
+
+    AsyncFunction("isObserveModeEnabled") { () -> Bool in
+      false
+    }
+
+    AsyncFunction("setObserveModeEnabled") { (_: Bool) -> Bool in
+      // False rather than a throw: this is the shape of "the platform refused",
+      // which is a case every caller already handles, and a cleanup path should
+      // not have to branch on the platform.
+      false
+    }
+
+    AsyncFunction("startHce") { (_: [String: Any]) throws -> [String: Any] in
       throw NfcException(
         NfcErrorCode.unsupportedPlatform,
         "Card emulation is not available on iOS through this library. CoreNFC's CardSession "

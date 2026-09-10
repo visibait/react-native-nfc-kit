@@ -37,7 +37,7 @@
  *
  * Bumping this is a minor release, and the changelog marks it.
  */
-export const CONTRACT_VERSION = 3;
+export const CONTRACT_VERSION = 4;
 
 /** Native module name, as registered by both platforms. */
 export const NATIVE_MODULE_NAME = 'NfcKit';
@@ -156,6 +156,20 @@ export interface NativeCapabilities {
   /** iOS 26.4+ narrows AIDs and FeliCa system codes per session. */
   readonly perSessionConfig: boolean;
   readonly hce: boolean;
+  /**
+   * Whether the controller can hold an emulated card silent while a reader polls.
+   *
+   * Android 15 and later, and a hardware capability on top of that: plenty of
+   * API 35 devices answer `false`. iOS has no equivalent.
+   */
+  readonly observeMode: boolean;
+  /**
+   * Whether the app can see a reader's polling loop frames.
+   *
+   * Android 15 and later. Only the platform matters here, not the controller: the
+   * callback that carries them is on the emulation service.
+   */
+  readonly pollingFrames: boolean;
   readonly backgroundReading: boolean;
 }
 
@@ -198,6 +212,28 @@ export const HCE_DEACTIVATION_REASONS = ['linkLoss', 'deselected'] as const;
 
 export type HceDeactivationReason = (typeof HCE_DEACTIVATION_REASONS)[number];
 
+/**
+ * One polling loop frame pattern the emulation service wants delivered.
+ *
+ * A reader polls before it selects anything, and the frames it sends often
+ * identify it. Registering a filter is how a service asks to see them.
+ */
+export interface NativePollingLoopFilter {
+  /**
+   * Hexadecimal prefix, or a regular expression over hexadecimal when
+   * `isPattern` is set.
+   */
+  readonly pattern: string;
+  readonly isPattern: boolean;
+  /**
+   * Whether the platform should leave observe mode by itself on a match.
+   *
+   * The low-latency route for a reader the app already trusts, at the cost of the
+   * confirmation step observe mode exists to allow.
+   */
+  readonly autoTransact: boolean;
+}
+
 export interface NativeHceOptions {
   /**
    * How long native waits for JavaScript to answer one command, in milliseconds.
@@ -219,6 +255,24 @@ export interface NativeHceOptions {
    * is here.
    */
   readonly aids: readonly string[] | null;
+  /**
+   * Whether to ask the platform to route taps here while the app is in front.
+   *
+   * Without it the user's default wallet keeps the tap, and the platform will not
+   * let the app control observe mode or see polling frames.
+   */
+  readonly preferSelf: boolean;
+  /** Whether to start with the card held silent. */
+  readonly observeMode: boolean;
+  readonly pollingLoopFilters: readonly NativePollingLoopFilter[] | null;
+}
+
+/** What `startHce` actually managed to arrange. */
+export interface NativeHceStarted {
+  /** Whether the platform routed taps to this app. Needs a foreground activity. */
+  readonly preferred: boolean;
+  /** Whether the card is being held silent. */
+  readonly observeMode: boolean;
 }
 
 /** Error shape native attaches to an event, mirroring `NfcError`. */
@@ -287,6 +341,35 @@ export interface NativeHceDeactivatedEvent {
   readonly reason: string;
 }
 
+/** Frame types the platform distinguishes. `on` and `off` are the field itself. */
+export const POLLING_FRAME_TYPES = ['a', 'b', 'f', 'on', 'off', 'unknown'] as const;
+
+export type PollingFrameType = (typeof POLLING_FRAME_TYPES)[number];
+
+export interface NativePollingFrame {
+  /** One of `POLLING_FRAME_TYPES`; validated on arrival. */
+  readonly type: string;
+  /** The frame's bytes, as lowercase hex. Polling frames are a few bytes long. */
+  readonly dataHex: string;
+  /**
+   * Vendor-specific field strength, or `-1` when the controller does not report it.
+   *
+   * Not comparable between devices, and not a distance.
+   */
+  readonly gain: number;
+  /**
+   * The platform's own monotonic value for when the frame was seen.
+   *
+   * Sound only for ordering frames and measuring the gap between them.
+   */
+  readonly timestamp: number;
+  readonly triggeredAutoTransact: boolean;
+}
+
+export interface NativePollingFramesEvent {
+  readonly frames: readonly NativePollingFrame[];
+}
+
 export interface NativeEventMap {
   readonly onTagDiscovered: (event: NativeTagDiscoveredEvent) => void;
   readonly onBackgroundTag: (event: NativeBackgroundTagEvent) => void;
@@ -295,6 +378,7 @@ export interface NativeEventMap {
   readonly onAvailabilityChanged: (event: NativeAvailabilityEvent) => void;
   readonly onHceCommand: (event: NativeHceCommandEvent) => void;
   readonly onHceDeactivated: (event: NativeHceDeactivatedEvent) => void;
+  readonly onPollingFrames: (event: NativePollingFramesEvent) => void;
 }
 
 export type NativeEventName = keyof NativeEventMap;
@@ -307,6 +391,7 @@ export const NATIVE_EVENT_NAMES = [
   'onAvailabilityChanged',
   'onHceCommand',
   'onHceDeactivated',
+  'onPollingFrames',
 ] as const satisfies readonly NativeEventName[];
 
 /* -------------------------------------------------------------------------- */
@@ -369,7 +454,18 @@ export interface NativeNfcKitModule {
 
   /** Whether this device can emulate a card at all. */
   isHceSupported(): Promise<boolean>;
-  startHce(options: NativeHceOptions): Promise<void>;
+  /** Whether this controller can hold an emulated card silent. */
+  isObserveModeSupported(): Promise<boolean>;
+  isObserveModeEnabled(): Promise<boolean>;
+  /**
+   * Holds the card silent, or lets it answer again.
+   *
+   * Resolves `false` when the platform refused -- it grants this only to the
+   * service it currently prefers -- rather than reporting success for something
+   * that did not happen.
+   */
+  setObserveModeEnabled(enabled: boolean): Promise<boolean>;
+  startHce(options: NativeHceOptions): Promise<NativeHceStarted>;
   stopHce(): Promise<void>;
   /**
    * Answers one command.
