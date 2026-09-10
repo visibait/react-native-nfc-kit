@@ -1,21 +1,38 @@
 <div align="center">
 
-# react-native-nfc-kit
+<a href="https://react-native-nfc-kit.mintlify.site/">
+  <img src="https://raw.githubusercontent.com/visibait/react-native-nfc-kit/main/.github/assets/banner.jpg" alt="react-native-nfc-kit — modern, fully-typed NFC for React Native and Expo" width="100%">
+</a>
 
-**Modern, fully-typed NFC for React Native and Expo.**
+<br>
+<br>
 
-[![npm](https://img.shields.io/npm/v/react-native-nfc-kit?color=0F766E)](https://www.npmjs.com/package/react-native-nfc-kit)
-[![license](https://img.shields.io/npm/l/react-native-nfc-kit?color=0F766E)](LICENSE)
-[![types](https://img.shields.io/badge/types-included-0F766E)](https://www.npmjs.com/package/react-native-nfc-kit)
+[![npm](https://img.shields.io/npm/v/react-native-nfc-kit?color=6D5AE6&labelColor=1B1B22)](https://www.npmjs.com/package/react-native-nfc-kit)
+[![downloads](https://img.shields.io/npm/dm/react-native-nfc-kit?color=6D5AE6&labelColor=1B1B22)](https://www.npmjs.com/package/react-native-nfc-kit)
+[![CI](https://img.shields.io/github/actions/workflow/status/visibait/react-native-nfc-kit/ci.yml?branch=main&label=CI&color=6D5AE6&labelColor=1B1B22)](https://github.com/visibait/react-native-nfc-kit/actions/workflows/ci.yml)
+[![types](https://img.shields.io/badge/types-included-6D5AE6?labelColor=1B1B22)](https://www.npmjs.com/package/react-native-nfc-kit)
+[![license](https://img.shields.io/npm/l/react-native-nfc-kit?color=6D5AE6&labelColor=1B1B22)](LICENSE)
 
-[Documentation](https://react-native-nfc-kit.mintlify.site/) ·
-[Quickstart](https://react-native-nfc-kit.mintlify.site/quickstart) ·
-[Setup guides](https://react-native-nfc-kit.mintlify.site/setup/overview) ·
+**[Documentation](https://react-native-nfc-kit.mintlify.site/)** &nbsp;·&nbsp;
+[Quickstart](https://react-native-nfc-kit.mintlify.site/quickstart) &nbsp;·&nbsp;
+[Setup guides](https://react-native-nfc-kit.mintlify.site/setup/overview) &nbsp;·&nbsp;
+[Errors](https://react-native-nfc-kit.mintlify.site/errors) &nbsp;·&nbsp;
 [Migrating from nfc-manager](https://react-native-nfc-kit.mintlify.site/migrating-from-nfc-manager)
 
 </div>
 
----
+<br>
+
+## Install
+
+```bash
+npx expo install react-native-nfc-kit
+npx expo prebuild --clean
+```
+
+> [!IMPORTANT]
+> **NFC needs a development build.** It is native code, so Expo Go cannot load it.
+> `npx expo run:android`, `npx expo run:ios` or `eas build` all work.
 
 Read a tag in about ten lines, and the session cannot leak:
 
@@ -28,13 +45,7 @@ const message = await nfc.withTag({ tech: ['ndef'], timeoutMs: 20_000 }, async (
 });
 ```
 
-```bash
-npx expo install react-native-nfc-kit
-npx expo prebuild --clean
-```
-
-> **NFC needs a development build.** It is native code, so Expo Go cannot load it.
-> `npx expo run:android`, `npx expo run:ios` or `eas build` all work.
+<br>
 
 ## Why you might want this one
 
@@ -69,6 +80,8 @@ if (NfcError.is(error, 'tagLost')) return retry();
 **Cancellation and timeouts everywhere.** Every awaitable takes an `AbortSignal` and
 a `timeoutMs`, and aborting before the call reaches the radio does not touch it.
 
+<br>
+
 ## What you can do with it
 
 | Import                           | What it gives you                                                              |
@@ -93,6 +106,8 @@ const session = await hce.emulateNdef(encodeMessage([createUriRecord(url)]));
 const ticket = await nfc.withLaunchTag((tag) => (tag.is('ndef') ? tag.readNdef() : null));
 ```
 
+<br>
+
 ## What works where
 
 The interesting column is the one that says no. None of this is hidden behind a
@@ -113,6 +128,8 @@ runtime, and the types tell you before that.
 | Observe mode, polling frames |           —           | API 35+ |      —       |
 | Apple Wallet passes (VAS)    |      entitlement      |    —    |      —       |
 
+<br>
+
 ## Requirements
 
 |                     | Minimum                     |
@@ -126,6 +143,8 @@ runtime, and the types tell you before that.
 New Architecture only. Bare React Native works too — Expo Modules need the `expo`
 package, not the whole SDK. See
 [the bare React Native guide](https://react-native-nfc-kit.mintlify.site/setup/bare-react-native).
+
+<br>
 
 ## Setup, per use case
 
@@ -149,12 +168,16 @@ cannot drift.
 Also worth knowing about: [the error reference](https://react-native-nfc-kit.mintlify.site/errors), with every
 `NfcErrorCode`, what causes it and what to do about it.
 
+<br>
+
 ## Coming from react-native-nfc-manager
 
 Both libraries can be installed side by side, so you can migrate one screen at a
 time. [The migration guide](https://react-native-nfc-kit.mintlify.site/migrating-from-nfc-manager) has an API
 equivalence table, the differences that actually change calling code, and a worked
 before-and-after.
+
+<br>
 
 ## How this is verified
 
@@ -182,6 +205,12 @@ one. [The device matrix](https://react-native-nfc-kit.mintlify.site/device-matri
 that, and it is the right place to look if you hit something on a device or chipset
 combination you would like covered.
 
-## License
+<br>
 
-MIT
+<div align="center">
+
+**MIT** © [visibait](https://github.com/visibait)
+
+<sub>Made for production NFC by the team behind <b>Ventry</b>.</sub>
+
+</div>
