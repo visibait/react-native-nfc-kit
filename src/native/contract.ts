@@ -37,7 +37,7 @@
  *
  * Bumping this is a minor release, and the changelog marks it.
  */
-export const CONTRACT_VERSION = 4;
+export const CONTRACT_VERSION = 5;
 
 /** Native module name, as registered by both platforms. */
 export const NATIVE_MODULE_NAME = 'NfcKit';
@@ -171,6 +171,14 @@ export interface NativeCapabilities {
    */
   readonly pollingFrames: boolean;
   readonly backgroundReading: boolean;
+  /**
+   * Whether reading an Apple Wallet pass is possible here.
+   *
+   * iOS only, and it means the API and the hardware are available -- not that
+   * Apple has granted the entitlement, which cannot be asked and only shows up
+   * when a read is attempted.
+   */
+  readonly vas: boolean;
 }
 
 export interface NativeSessionOptions {
@@ -273,6 +281,52 @@ export interface NativeHceStarted {
   readonly preferred: boolean;
   /** Whether the card is being held silent. */
   readonly observeMode: boolean;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Wallet passes                                                              */
+/* -------------------------------------------------------------------------- */
+
+export const VAS_MODES = ['normal', 'urlOnly'] as const;
+
+export type VasMode = (typeof VAS_MODES)[number];
+
+/**
+ * Status words a `GET VAS DATA` command answers with.
+ *
+ * Real APDU values from the CoreNFC header, which is why `success` is `0x9000`
+ * like every other status word in this library rather than a separate scheme.
+ */
+export const VAS_STATUS = {
+  success: 0x9000,
+  dataNotFound: 0x6a83,
+  dataNotActivated: 0x6287,
+  wrongParameters: 0x6b00,
+  wrongLength: 0x6700,
+  userIntervention: 0x6984,
+  incorrectData: 0x6a80,
+  unsupportedApplicationVersion: 0x6340,
+} as const;
+
+export type VasStatusName = keyof typeof VAS_STATUS | 'unknown';
+
+export interface NativeVasConfiguration {
+  readonly mode: string;
+  readonly passTypeIdentifier: string;
+  readonly url: string | null;
+}
+
+export interface NativeVasOptions {
+  readonly configurations: readonly NativeVasConfiguration[];
+  readonly alertMessage: string | null;
+}
+
+export interface NativeVasResponse {
+  readonly status: number;
+  /** One of `VasStatusName`; validated on arrival. */
+  readonly statusName: string;
+  readonly vasDataHex: string;
+  readonly mobileTokenHex: string;
 }
 
 /** Error shape native attaches to an event, mirroring `NfcError`. */
@@ -475,4 +529,9 @@ export interface NativeNfcKitModule {
    * is a race the caller cannot avoid and does not need to handle.
    */
   respondToHce(requestId: string, response: Uint8Array): Promise<boolean>;
+
+  // Apple Wallet passes. iOS only; both reject `unsupportedPlatform` on Android.
+
+  isVasSupported(): Promise<boolean>;
+  readVas(options: NativeVasOptions): Promise<readonly NativeVasResponse[]>;
 }

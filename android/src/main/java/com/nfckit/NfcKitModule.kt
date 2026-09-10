@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Bumped together with `CONTRACT_VERSION` in `src/native/contract.ts`. */
-private const val CONTRACT_VERSION = 4
+private const val CONTRACT_VERSION = 5
 
 private const val EVENT_TAG_DISCOVERED = "onTagDiscovered"
 private const val EVENT_BACKGROUND_TAG = "onBackgroundTag"
@@ -174,6 +174,9 @@ class NfcKitModule : Module() {
         // filters in its manifest, which is the config plugin's job. This says
         // the module can deliver one when the system dispatches it.
         "backgroundReading" to true,
+        // Apple Wallet passes are an Apple protocol read through CoreNFC's own VAS
+        // session. There is no Android equivalent to expose.
+        "vas" to false,
       )
     }
 
@@ -426,6 +429,17 @@ class NfcKitModule : Module() {
       HceBridge.answer(requestId, response)
     }
 
+    /* -- Wallet passes ---------------------------------------------------- */
+
+    AsyncFunction("isVasSupported") { false }
+
+    AsyncFunction("readVas") { _: Map<String, Any?> ->
+      unsupportedHere<List<Map<String, Any?>>>(
+        "Reading an Apple Wallet pass uses CoreNFC's VAS session, which exists only on iOS. " +
+          "Guard with capabilities.vas.",
+      )
+    }
+
     /* -- Lifecycle -------------------------------------------------------- */
 
     OnActivityEntersForeground {
@@ -518,6 +532,17 @@ class NfcKitModule : Module() {
       ),
       "ios" to null,
     )
+
+  /**
+   * Refuses a call that only exists on the other platform.
+   *
+   * Typed rather than simply throwing, because a lambda whose body always throws
+   * infers `Nothing`, and the module DSL cannot use that as a reified type. The
+   * type parameter gives the function a real signature while the body still never
+   * returns.
+   */
+  private fun <T> unsupportedHere(reason: String): T =
+    throw NfcException(NfcErrorCode.UNSUPPORTED_PLATFORM, reason)
 
   private fun cardEmulation(): CardEmulation? =
     nfcAdapter()?.let { CardEmulation.getInstance(it) }

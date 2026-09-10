@@ -72,6 +72,13 @@ export interface NfcCapabilities {
   /** Whether a reader's polling loop frames reach the app. Android 15 and later. */
   readonly pollingFrames: boolean;
   readonly backgroundReading: boolean;
+  /**
+   * Whether an Apple Wallet pass can be read here.
+   *
+   * iOS only, and it means the API and hardware are present -- not that Apple has
+   * granted the entitlement, which is only discoverable by attempting a read.
+   */
+  readonly vas: boolean;
 }
 
 export interface NfcAvailability {
@@ -96,6 +103,7 @@ function toCapabilities(native: NativeCapabilities): NfcCapabilities {
     hce: native.hce,
     observeMode: native.observeMode,
     pollingFrames: native.pollingFrames,
+    vas: native.vas,
     backgroundReading: native.backgroundReading,
   };
 }

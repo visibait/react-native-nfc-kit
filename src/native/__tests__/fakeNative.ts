@@ -20,6 +20,8 @@ import type {
   NativeHceStarted,
   NativePollingFrame,
   NativePollingFramesEvent,
+  NativeVasOptions,
+  NativeVasResponse,
   NativeCapabilities,
   NativeEventMap,
   NativeEventName,
@@ -53,6 +55,7 @@ const DEFAULT_CAPABILITIES: NativeCapabilities = {
   hce: false,
   observeMode: false,
   pollingFrames: false,
+  vas: false,
   backgroundReading: true,
 };
 
@@ -408,6 +411,21 @@ export class FakeNativeModule implements NativeNfcKitModule {
       this.hceResponses.set(requestId, response);
     }
     return this.record('respondToHce', [requestId, response], accepted);
+  }
+
+  /* -- Wallet passes ----------------------------------------------------- */
+
+  vasSupported = false;
+  vasOptions: NativeVasOptions | null = null;
+  vasResponses: readonly NativeVasResponse[] = [];
+
+  isVasSupported(): Promise<boolean> {
+    return this.record('isVasSupported', [], this.vasSupported);
+  }
+
+  readVas(options: NativeVasOptions): Promise<readonly NativeVasResponse[]> {
+    this.vasOptions = options;
+    return this.record('readVas', [options], this.vasResponses);
   }
 
   takeLaunchTag(): Promise<NativeTagInfo | null> {

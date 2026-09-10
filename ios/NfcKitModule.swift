@@ -3,7 +3,7 @@ import UIKit
 @preconcurrency import CoreNFC
 
 /// Bumped together with `CONTRACT_VERSION` in `src/native/contract.ts`.
-private let contractVersion = 4
+private let contractVersion = 5
 
 /// Mirrors `NativeSessionOptions`. The Android fields are accepted and ignored.
 internal struct SessionOptions: Record {
@@ -16,6 +16,19 @@ internal struct SessionOptions: Record {
   @Field var androidSkipNdefCheck: Bool = false
   @Field var androidNoPlatformSounds: Bool = false
   @Field var androidPresenceCheckDelayMs: Int?
+}
+
+/** Mirrors `NativeVasConfiguration`. */
+internal struct VasConfigurationOptions: Record {
+  @Field var mode: String = "normal"
+  @Field var passTypeIdentifier: String = ""
+  @Field var url: String?
+}
+
+/** Mirrors `NativeVasOptions`. */
+internal struct VasOptions: Record {
+  @Field var configurations: [VasConfigurationOptions] = []
+  @Field var alertMessage: String?
 }
 
 /**
@@ -35,6 +48,16 @@ internal struct SessionOptions: Record {
 public final class NfcKitModule: Module, @unchecked Sendable {
   /// Created lazily so the event sink can capture the module safely.
   private var coordinatorStorage: NfcSessionCoordinator?
+  private var vasStorage: VasSessionCoordinator?
+
+  private func vas() -> VasSessionCoordinator {
+    if let vasStorage {
+      return vasStorage
+    }
+    let created = VasSessionCoordinator()
+    vasStorage = created
+    return created
+  }
 
   private func coordinator() -> NfcSessionCoordinator {
     if let coordinatorStorage {
@@ -111,6 +134,10 @@ public final class NfcKitModule: Module, @unchecked Sendable {
         // here, so there is nothing for them to apply to.
         "observeMode": false,
         "pollingFrames": false,
+        // The API is available from iOS 13 and the device can read NFC; whether
+        // Apple has granted the entitlement is not something that can be asked,
+        // only attempted. `readVas` reports entitlementMissing when it has not.
+        "vas": NFCReaderSession.readingAvailable,
         "backgroundReading": false
       ] as [String: Any]
     }
@@ -296,6 +323,39 @@ public final class NfcKitModule: Module, @unchecked Sendable {
       false
     }
 
+    /* -- Wallet passes ---------------------------------------------------- */
+
+    AsyncFunction("isVasSupported") { () -> Bool in
+      NFCReaderSession.readingAvailable
+    }
+
+    AsyncFunction("readVas") { (options: VasOptions, promise: Promise) in
+      self.perform(promise, "reading a Wallet pass") {
+        // iOS allows one reader session across the whole system, so the tag
+        // coordinator is asked first. Two objects each believing they own "the"
+        // session produces a SystemIsBusy from CoreNFC with nothing in the app
+        // able to explain it.
+        if await self.coordinator().isOpen {
+          throw NfcException(
+            NfcErrorCode.systemBusy,
+            "A tag session is open. Close it before reading a Wallet pass: iOS allows one reader "
+              + "session at a time."
+          )
+        }
+
+        return try await self.vas().read(
+          configurations: options.configurations.map {
+            VasConfiguration(
+              mode: $0.mode,
+              passTypeIdentifier: $0.passTypeIdentifier,
+              url: $0.url
+            )
+          },
+          alertMessage: options.alertMessage
+        )
+      }
+    }
+
     /* -- Lifecycle -------------------------------------------------------- */
 
     OnDestroy {
@@ -303,6 +363,9 @@ public final class NfcKitModule: Module, @unchecked Sendable {
       // nothing behind it.
       if let coordinator = self.coordinatorStorage {
         Task { await coordinator.closeAny() }
+      }
+      if let vas = self.vasStorage {
+        Task { await vas.teardown() }
       }
     }
   }

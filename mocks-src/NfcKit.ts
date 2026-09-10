@@ -182,7 +182,7 @@ export const __nfcKitMock = {
 /* The mocked native surface                                                  */
 /* -------------------------------------------------------------------------- */
 
-export const contractVersion = 4;
+export const contractVersion = 5;
 
 export const capabilities = {
   platform: 'android',
@@ -193,6 +193,7 @@ export const capabilities = {
   hce: true,
   observeMode: true,
   pollingFrames: true,
+  vas: false,
   backgroundReading: true,
 };
 
@@ -323,4 +324,16 @@ export function stopHce(): Promise<void> {
 
 export function respondToHce(requestId: string, response: Uint8Array): Promise<boolean> {
   return record('respondToHce', [requestId, response], true);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Wallet passes                                                              */
+/* -------------------------------------------------------------------------- */
+
+export function isVasSupported(): Promise<boolean> {
+  return record('isVasSupported', [], false);
+}
+
+export function readVas(options: unknown): Promise<unknown[]> {
+  return record('readVas', [options], []);
 }

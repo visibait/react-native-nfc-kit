@@ -202,6 +202,7 @@ in CI, so the two cannot drift apart.
 | Read MIFARE Classic                      | [docs/setup/mifare-classic.md](docs/setup/mifare-classic.md)         |
 | Handle a tag that launches your app      | [docs/setup/background-reading.md](docs/setup/background-reading.md) |
 | Emulate a card for a terminal            | [docs/setup/hce.md](docs/setup/hce.md)                               |
+| Read an Apple Wallet pass                | [docs/setup/vas.md](docs/setup/vas.md)                               |
 | Install into a bare React Native project | [docs/setup/bare-react-native.md](docs/setup/bare-react-native.md)   |
 
 ## How this is verified
@@ -217,6 +218,7 @@ Nothing here is claimed to work because it looks right.
 | Protocol layers       | 247 unit tests, 100% branch coverage: ISO 7816 chaining and `61xx`/`6Cxx`, ISO 15693, FeliCa, NTAG/Ultralight                          |
 | React hooks           | 26 tests through `renderHook`, including the unmount races: a scan cancelled by navigating away, an answer arriving after unmount      |
 | Background tags       | Tested against the fake native module: the launch tag is consumed once, every tag is released even when its handler throws             |
+| Wallet passes         | Validation and decoding tested against the fake native module; the read itself needs an entitlement Apple grants case by case          |
 | Card emulation        | The emulated Type 4 tag is driven through a whole reader conversation, using the same functions an app uses to talk to a real card     |
 | Config plugin         | 104 tests through Expo's own introspection compiler, so the assertions are about what `expo prebuild` produces                         |
 | The published package | `publint` and `arethetypeswrong` against a packed tarball, so a broken `exports` map fails before a user finds it                      |

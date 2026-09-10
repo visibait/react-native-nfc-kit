@@ -63,7 +63,7 @@ const config: Config = {
     {
       displayName: 'core',
       preset: 'jest-expo',
-      roots: existingRoots('src/core', 'src/native', 'src/react', 'src/hce'),
+      roots: existingRoots('src/core', 'src/native', 'src/react', 'src/hce', 'src/vas'),
       moduleNameMapper: RESOLVE_TS_FROM_JS_SPECIFIER,
       testMatch: TEST_MATCH,
     },
@@ -120,6 +120,15 @@ const config: Config = {
     // tag and the framing around it are as testable as the codec: a terminal's
     // whole conversation can be played through them without a device.
     './src/hce/': {
+      branches: 100,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
+    // Reading a Wallet pass is validation and hex decoding over one native call,
+    // all of which is reachable from a test even though the entitlement it needs
+    // is not something that can be obtained here.
+    './src/vas/': {
       branches: 100,
       functions: 100,
       lines: 100,
