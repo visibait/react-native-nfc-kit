@@ -195,6 +195,18 @@ npx pod-install
 There is no `prebuild` in a bare project, so entitlements and the Android manifest are
 edited by hand. See [docs/setup/bare-react-native.md](docs/setup/bare-react-native.md).
 
+## What has not been validated on hardware
+
+Nothing, yet — and that is stated here rather than left to be discovered.
+[docs/device-matrix.md](docs/device-matrix.md) is the checklist: 45 rows covering
+every claim this library makes, each with the setup that tests it and what "passed"
+means. Not one has been run.
+
+The automated suite proves the bookkeeping — including a soak test that runs thirty
+iterations of every entry point and asserts nothing is left held. Only a tag proves
+the radio, which is why the version is `0.9.0` and why
+[RELEASING.md](RELEASING.md) lists what a `1.0.0` needs first.
+
 ## Documentation
 
 The full documentation lives under [docs/](docs/) and is built as a Mintlify site
@@ -244,6 +256,7 @@ Nothing here is claimed to work because it looks right.
 | Wallet passes         | Validation and decoding tested against the fake native module; the read itself needs an entitlement Apple grants case by case          |
 | Card emulation        | The emulated Type 4 tag is driven through a whole reader conversation, using the same functions an app uses to talk to a real card     |
 | Config plugin         | 104 tests through Expo's own introspection compiler, so the assertions are about what `expo prebuild` produces                         |
+| Leaks                 | 30 iterations of every entry point, asserting no session, no native listener and no handle is left behind                              |
 | The documentation     | Every import in a code block is checked against the barrels that define it, and the site's navigation against the files on disk        |
 | The published package | `publint` and `arethetypeswrong` against a packed tarball, so a broken `exports` map fails before a user finds it                      |
 
@@ -253,19 +266,19 @@ release requirement, not an afterthought.
 
 ## Roadmap
 
-| Phase | Contents                                                              | Status |
-| ----- | --------------------------------------------------------------------- | ------ |
-| M0    | Repository scaffold, tooling, CI                                      | done   |
-| M1    | NDEF codec (pure TypeScript, no native)                               | done   |
-| M2    | Android core: reader mode, tech adapters, errors, sessions, tags      | done   |
-| M3    | iOS core: session actor, one-shot continuations, tag handles          | done   |
-| M4    | Protocol layers: ISO 7816, ISO 15693, FeliCa, NTAG/Ultralight         | done   |
-| M5    | Config plugin, bare React Native, React hooks                         | done   |
-| M6    | Continuous reading, `onTagLost`, observe mode, background tag reading | next   |
-| M7    | Host card emulation (Android)                                         | done   |
-| M8    | Observe mode, polling loop frames                                     | done   |
-| M9    | Web NFC shim, documentation site, migration guide                     | done   |
-| M10   | Error reference, device matrix pass, soak tests, `1.0.0`              | next   |
+| Phase | Contents                                                              | Status      |
+| ----- | --------------------------------------------------------------------- | ----------- |
+| M0    | Repository scaffold, tooling, CI                                      | done        |
+| M1    | NDEF codec (pure TypeScript, no native)                               | done        |
+| M2    | Android core: reader mode, tech adapters, errors, sessions, tags      | done        |
+| M3    | iOS core: session actor, one-shot continuations, tag handles          | done        |
+| M4    | Protocol layers: ISO 7816, ISO 15693, FeliCa, NTAG/Ultralight         | done        |
+| M5    | Config plugin, bare React Native, React hooks                         | done        |
+| M6    | Continuous reading, `onTagLost`, observe mode, background tag reading | next        |
+| M7    | Host card emulation (Android)                                         | done        |
+| M8    | Observe mode, polling loop frames                                     | done        |
+| M9    | Web NFC shim, documentation site, migration guide                     | done        |
+| M10   | Error reference, device matrix, soak tests, release pipeline          | in progress |
 
 Out of scope, deliberately: Apple's NFC & SE Platform (`CredentialSession`). It requires
 an agreement with Apple, ABR onboarding, and an accredited-lab applet security review —

@@ -1,0 +1,78 @@
+# Publishing to npm.
+#
+# There is no NPM_TOKEN here, deliberately. This uses npm's trusted publishing:
+# GitHub Actions mints a short-lived OIDC token, npm accepts it because the package
+# names this workflow as a trusted publisher, and provenance attestations are
+# generated automatically. Classic npm tokens were deprecated on 2025-12-09, and
+# automation tokens lose direct publish in January 2027, so a token-based release
+# would be a pipeline with a known end date.
+#
+# **The workflow filename is part of the trust configuration.** npm matches on the
+# owner, the repository and this file's name, so renaming this file breaks publishing
+# until the trusted publisher is updated on npmjs.com. See RELEASING.md.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Version or publish
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Mints the OIDC token npm exchanges for publish rights. Without it the
+      # publish falls back to looking for a token and fails.
+      id-token: write
+      # The changesets action opens and updates the version pull request, and tags
+      # the release commit.
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Changesets compares against the base branch to decide what to bump.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          # Trusted publishing needs Node 22.14 or later and npm 11.5.1 or later.
+          # Pinned rather than left to the runner's default so a runner image
+          # change cannot silently drop below the floor.
+          node-version: 22.14.0
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - name: Use an npm that can publish this way
+        run: npm install --global npm@latest
+
+      - run: npm ci --ignore-scripts
+
+      # The gates run again here rather than being trusted from the push that
+      # triggered this. A release is the one place where "it passed earlier" is not
+      # good enough: the tree being published is this one.
+      - name: Verify
+        run: |
+          npm run lint
+          npm run format:check
+          npm run typecheck
+          npm run test:coverage
+          npm run verify:package
+
+      - name: Version or publish
+        uses: changesets/action@v1
+        with:
+          # With changesets pending, this opens or updates a pull request that
+          # applies them. With none, and a version not yet on npm, it publishes.
+          version: npm run release:version
+          publish: npm publish
+          commit: 'chore: release'
+          title: 'chore: release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -30,7 +30,7 @@
       },
       {
         "group": "Guides",
-        "pages": ["ndef", "migrating-from-nfc-manager"]
+        "pages": ["ndef", "errors", "migrating-from-nfc-manager", "device-matrix"]
       }
     ]
   },
