@@ -1,6 +1,6 @@
 {
   "name": "react-native-nfc-kit",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "description": "Modern, typed NFC for React Native and Expo. New Architecture native, Swift + Kotlin, sessions that cannot leak.",
   "main": "./build/cjs/index.js",
   "types": "./build/cjs/index.d.ts",
