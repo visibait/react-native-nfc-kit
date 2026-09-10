@@ -42,6 +42,27 @@ export {
   updateBinary,
 } from './iso7816.js';
 
+export {
+  PACK_SIZE,
+  PAGES_PER_READ,
+  PAGE_SIZE,
+  PASSWORD_SIZE,
+  READ_SIZE,
+  compatibilityWritePage,
+  fastRead,
+  getVersion,
+  passwordAuthenticate,
+  read,
+  readCounter,
+  readPages,
+  readSignature,
+  storageBytesFor,
+  writePage,
+  writePages,
+} from './ultralight.js';
+
+export type { TagVersion, UltralightTransport } from './ultralight.js';
+
 export type {
   ApduTransport,
   CommandApdu,
