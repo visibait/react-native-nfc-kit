@@ -26,6 +26,7 @@ import type {
   NativeEventMap,
   NativeEventName,
   NativeNdefStatus,
+  NativeNfcAntennaInfo,
   NativeNfcKitModule,
   NativeSessionInvalidatedEvent,
   NativeSessionOptions,
@@ -57,6 +58,8 @@ const DEFAULT_CAPABILITIES: NativeCapabilities = {
   pollingFrames: false,
   vas: false,
   backgroundReading: true,
+  antennaInfo: false,
+  secureNfc: false,
 };
 
 /**
@@ -102,6 +105,9 @@ export class FakeNativeModule implements NativeNfcKitModule {
   maxTransceiveLength = 253;
   techTimeout = 300;
   launchTag: NativeTagInfo | null = null;
+  /** Null by default: most devices do not report where their antenna is. */
+  antennaInfo: NativeNfcAntennaInfo | null = null;
+  secureNfcEnabled = false;
 
   /** When set, the named method rejects with this instead of resolving. */
   readonly rejections = new Map<string, unknown>();
@@ -296,6 +302,14 @@ export class FakeNativeModule implements NativeNfcKitModule {
 
   openSettings(): Promise<void> {
     return this.record('openSettings', [], undefined);
+  }
+
+  getAntennaInfo(): Promise<NativeNfcAntennaInfo | null> {
+    return this.record('getAntennaInfo', [], this.antennaInfo);
+  }
+
+  isSecureNfcEnabled(): Promise<boolean> {
+    return this.record('isSecureNfcEnabled', [], this.secureNfcEnabled);
   }
 
   startSession(sessionId: string, options: NativeSessionOptions): Promise<void> {

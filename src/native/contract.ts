@@ -37,7 +37,7 @@
  *
  * Bumping this is a minor release, and the changelog marks it.
  */
-export const CONTRACT_VERSION = 5;
+export const CONTRACT_VERSION = 6;
 
 /** Native module name, as registered by both platforms. */
 export const NATIVE_MODULE_NAME = 'NfcKit';
@@ -129,6 +129,46 @@ export interface NativeNdefStatus {
   readonly typeName: string | null;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Antenna geometry                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Where one NFC antenna sits on the device.
+ *
+ * Millimetres from the bottom-left corner of the device as the user holds it,
+ * which is the platform's own frame of reference and not a screen coordinate:
+ * the origin is the corner of the hardware, bezels included.
+ */
+export interface NativeNfcAntenna {
+  readonly locationX: number;
+  readonly locationY: number;
+}
+
+/**
+ * The device's antenna layout, as the platform reports it.
+ *
+ * The device's own dimensions travel with the antennas rather than being fetched
+ * separately, because a location in millimetres means nothing without them: it is
+ * the ratio of the two that turns into a position on screen.
+ */
+export interface NativeNfcAntennaInfo {
+  /** Device width in millimetres. */
+  readonly deviceWidth: number;
+  /** Device height in millimetres. */
+  readonly deviceHeight: number;
+  /**
+   * Whether the device folds.
+   *
+   * When it does, the dimensions and the antenna locations describe it unfolded,
+   * so a folded phone needs its own arithmetic before any of this reaches a
+   * layout.
+   */
+  readonly deviceFoldable: boolean;
+  /** Empty when the platform reports the device but no antenna positions. */
+  readonly antennas: readonly NativeNfcAntenna[];
+}
+
 export const TAG_LOST_REPORTING = ['none', 'polled', 'native'] as const;
 
 export type TagLostReporting = (typeof TAG_LOST_REPORTING)[number];
@@ -185,6 +225,22 @@ export interface NativeCapabilities {
    * when a read is attempted.
    */
   readonly vas: boolean;
+  /**
+   * Whether this device says where its NFC antennas are.
+   *
+   * Android 14 and later, and asked of the device rather than of the API level:
+   * the manufacturer has to have filled the numbers in, and plenty of API 34
+   * devices have not.
+   */
+  readonly antennaInfo: boolean;
+  /**
+   * Whether the device has the secure NFC setting.
+   *
+   * Android 10 and later, and hardware-dependent on top of that. Whether it is
+   * switched *on* is a separate question -- the user can change it at any time --
+   * which is why that one is a call rather than a constant.
+   */
+  readonly secureNfc: boolean;
 }
 
 export interface NativeSessionOptions {
@@ -481,6 +537,22 @@ export interface NativeNfcKitModule {
   isEnabled(): Promise<boolean>;
   /** Android: opens the system NFC settings. Rejects `unsupportedPlatform` on iOS. */
   openSettings(): Promise<void>;
+
+  /**
+   * Where this device's NFC antennas are, or `null` when nothing reports them.
+   *
+   * `null` rather than a rejection on iOS, on the web and on Android below 14:
+   * this describes hardware, and "this device does not say" is an answer a caller
+   * has to handle on Android 14 anyway, so there is no second path to write.
+   */
+  getAntennaInfo(): Promise<NativeNfcAntennaInfo | null>;
+  /**
+   * Whether NFC is currently restricted to an unlocked screen.
+   *
+   * `false` where the setting does not exist. Asked rather than announced because
+   * the user can change it from the settings while the app is running.
+   */
+  isSecureNfcEnabled(): Promise<boolean>;
 
   // Session lifecycle. `sessionId` is minted by JS so the start call and the
   // events that follow can be correlated without a round trip.

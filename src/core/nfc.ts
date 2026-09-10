@@ -79,6 +79,69 @@ export interface NfcCapabilities {
    * granted the entitlement, which is only discoverable by attempting a read.
    */
   readonly vas: boolean;
+  /**
+   * Whether this device says where its NFC antennas are.
+   *
+   * Android 14 and later, and a per-device answer on top of that: the
+   * manufacturer has to have filled the numbers in. `false` on iOS and the web.
+   */
+  readonly antennaInfo: boolean;
+  /**
+   * Whether the device has the secure NFC setting -- NFC only while unlocked.
+   *
+   * Android 10 and later, plus hardware support. Whether it is switched on is
+   * `nfc.isSecureNfcEnabled()`, because the user can change it at any time.
+   */
+  readonly secureNfc: boolean;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Antenna geometry                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Where one NFC antenna sits on the device.
+ *
+ * Millimetres from the bottom-left corner of the device itself -- the corner of
+ * the hardware, bezels included -- and not a screen coordinate. Divide by the
+ * device's own dimensions to get a fraction you can lay out against.
+ */
+export interface NfcAntenna {
+  readonly locationX: number;
+  readonly locationY: number;
+}
+
+/**
+ * The device's antenna layout.
+ *
+ * The dimensions travel with the antennas because a position in millimetres means
+ * nothing without them: it is the ratio of the two that becomes a place on
+ * screen.
+ *
+ * ```ts
+ * const info = await nfc.getAntennaInfo();
+ * const antenna = info?.antennas[0];
+ * if (antenna !== undefined) {
+ *   const left = `${(antenna.locationX / info!.deviceWidth) * 100}%`;
+ *   // measured from the bottom, which is the opposite of a CSS `top`
+ *   const bottom = `${(antenna.locationY / info!.deviceHeight) * 100}%`;
+ * }
+ * ```
+ */
+export interface NfcAntennaInfo {
+  /** Device width in millimetres. */
+  readonly deviceWidth: number;
+  /** Device height in millimetres. */
+  readonly deviceHeight: number;
+  /**
+   * Whether the device folds.
+   *
+   * The dimensions and the antenna positions describe it unfolded, so a folded
+   * phone needs its own arithmetic before any of this reaches a layout.
+   */
+  readonly deviceFoldable: boolean;
+  /** Empty when the platform describes the device but places no antenna. */
+  readonly antennas: readonly NfcAntenna[];
 }
 
 export interface NfcAvailability {
@@ -105,6 +168,8 @@ function toCapabilities(native: NativeCapabilities): NfcCapabilities {
     pollingFrames: native.pollingFrames,
     vas: native.vas,
     backgroundReading: native.backgroundReading,
+    antennaInfo: native.antennaInfo,
+    secureNfc: native.secureNfc,
   };
 }
 
@@ -229,6 +294,51 @@ export const nfc = {
   async openSettings(): Promise<void> {
     const native = getNativeModule();
     return callNative(platform, 'openSettings', () => native.openSettings());
+  },
+
+  /**
+   * Where this device's NFC antennas are, or `null` when nothing reports them.
+   *
+   * ```ts
+   * const info = await nfc.getAntennaInfo();
+   * // info?.antennas[0] -> { locationX: 34, locationY: 118 }, in millimetres
+   * ```
+   *
+   * For drawing "hold the card here" in the right place instead of in the middle
+   * of the screen. Android 14 and later; `null` on iOS, on the web, and on any
+   * device whose manufacturer did not fill the numbers in -- which plenty of
+   * Android 14 devices did not, so the `null` branch is not the iOS branch by
+   * another name and has to be written either way.
+   *
+   * Resolves rather than rejects when the answer is "this device does not say",
+   * so a screen laying out a hint needs no try/catch. `capabilities.antennaInfo`
+   * is the same answer without the round trip.
+   */
+  async getAntennaInfo(): Promise<NfcAntennaInfo | null> {
+    const native = tryGetNativeModule();
+    if (native === null) {
+      return null;
+    }
+    return callNative(platform, 'getAntennaInfo', () => native.getAntennaInfo());
+  },
+
+  /**
+   * Whether NFC is currently restricted to an unlocked screen.
+   *
+   * Android's "Secure NFC" setting, and the explanation for a reader that works
+   * in the app and does nothing on the lock screen. Android 10 and later;
+   * `false` where the setting does not exist, including iOS and the web.
+   *
+   * A call rather than a capability because the user can change it from the
+   * settings while the app is running. Whether the device has the setting at all
+   * is `capabilities.secureNfc`.
+   */
+  async isSecureNfcEnabled(): Promise<boolean> {
+    const native = tryGetNativeModule();
+    if (native === null) {
+      return false;
+    }
+    return callNative(platform, 'isSecureNfcEnabled', () => native.isSecureNfcEnabled());
   },
 
   /** Fires when NFC is switched on or off. Android only in practice. */

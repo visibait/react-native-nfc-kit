@@ -15,6 +15,7 @@ import {
   isTextRecord,
   nfc,
   toHex,
+  type NfcAntennaInfo,
   type NfcAvailability,
   type Tag,
 } from 'react-native-nfc-kit';
@@ -31,12 +32,21 @@ export default function App() {
   const [status, setStatus] = useState('Idle');
   const [result, setResult] = useState<ScanResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [antenna, setAntenna] = useState<NfcAntennaInfo | null>(null);
+  const [secureNfc, setSecureNfc] = useState<boolean | null>(null);
 
   useEffect(() => {
     void nfc.getAvailability().then(setAvailability);
     // Android reports NFC being switched on or off while the app is running.
     const subscription = nfc.onAvailabilityChange(setAvailability);
     return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    // Hardware facts, so they are read once. Both answer on every platform
+    // rather than throwing, which is why neither needs a catch.
+    void nfc.getAntennaInfo().then(setAntenna);
+    void nfc.isSecureNfcEnabled().then(setSecureNfc);
   }, []);
 
   /** Reads whatever is on the tag, and reports it. */
@@ -141,6 +151,8 @@ export default function App() {
             label="Observe mode"
             value={String(availability?.capabilities?.observeMode ?? '…')}
           />
+          <Row label="Antenna" value={describeAntenna(antenna)} />
+          <Row label="Secure NFC" value={secureNfc === null ? '…' : String(secureNfc)} />
         </Section>
 
         <View style={styles.buttons}>
@@ -178,6 +190,25 @@ function describe(error: unknown): string {
     return `${error.code}: ${error.message}${retry}`;
   }
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * The antenna layout as one line.
+ *
+ * Null is the common answer even on Android 14 -- the numbers are the
+ * manufacturer's to fill in -- so it says which of the two it is rather than
+ * leaving a blank that reads like a bug.
+ */
+function describeAntenna(info: NfcAntennaInfo | null): string {
+  if (info === null) {
+    return 'not reported by this device';
+  }
+
+  const positions = info.antennas
+    .map((antenna) => `${antenna.locationX}, ${antenna.locationY}`)
+    .join(' · ');
+
+  return `${positions || 'none listed'} mm of ${info.deviceWidth}×${info.deviceHeight} mm`;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

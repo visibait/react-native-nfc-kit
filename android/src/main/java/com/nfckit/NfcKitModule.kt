@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Bumped together with `CONTRACT_VERSION` in `src/native/contract.ts`. */
-private const val CONTRACT_VERSION = 5
+private const val CONTRACT_VERSION = 6
 
 private const val EVENT_TAG_DISCOVERED = "onTagDiscovered"
 private const val EVENT_BACKGROUND_TAG = "onBackgroundTag"
@@ -43,6 +43,12 @@ private const val EVENT_POLLING_FRAMES = "onPollingFrames"
 
 /** The API level that added observe mode and polling loop frames. */
 private const val OBSERVE_MODE_SDK = 35
+
+/** The API level that added `NfcAdapter.getNfcAntennaInfo`. */
+private const val ANTENNA_INFO_SDK = 34
+
+/** The API level that added the secure NFC setting. */
+private const val SECURE_NFC_SDK = 29
 
 /** Mirrors `NativePollingLoopFilter`. */
 class PollingLoopFilterOptions : Record {
@@ -177,6 +183,13 @@ class NfcKitModule : Module() {
         // Apple Wallet passes are an Apple protocol read through CoreNFC's own VAS
         // session. There is no Android equivalent to expose.
         "vas" to false,
+        // Asked of the device rather than inferred from the API level: the
+        // manufacturer has to have filled the numbers in, and plenty of API 34
+        // devices answer null.
+        "antennaInfo" to (antennaInfoPayload() != null),
+        // Hardware-dependent as well as version-dependent, so the adapter is the
+        // one to ask.
+        "secureNfc" to isSecureNfcSupported(),
       )
     }
 
@@ -200,6 +213,12 @@ class NfcKitModule : Module() {
     AsyncFunction("openSettings") {
       val activity = requireActivity()
       activity.startActivity(Intent(Settings.ACTION_NFC_SETTINGS))
+    }
+
+    AsyncFunction("getAntennaInfo") { antennaInfoPayload() }
+
+    AsyncFunction("isSecureNfcEnabled") {
+      Build.VERSION.SDK_INT >= SECURE_NFC_SDK && nfcAdapter()?.isSecureNfcEnabled == true
     }
 
     /* -- Session lifecycle ----------------------------------------------- */
@@ -549,6 +568,38 @@ class NfcKitModule : Module() {
 
   private fun isObserveModeSupported(): Boolean =
     Build.VERSION.SDK_INT >= OBSERVE_MODE_SDK && nfcAdapter()?.isObserveModeSupported == true
+
+  private fun isSecureNfcSupported(): Boolean =
+    Build.VERSION.SDK_INT >= SECURE_NFC_SDK && nfcAdapter()?.isSecureNfcSupported == true
+
+  /**
+   * This device's antenna layout, in the shape `NativeNfcAntennaInfo` describes,
+   * or null.
+   *
+   * Null covers three situations deliberately: below API 34 the call does not
+   * exist, there may be no adapter at all, and a manufacturer on API 34 may
+   * simply not have filled the numbers in. None of them is an error, and a caller
+   * that handles the third one has already handled the other two.
+   *
+   * The platform type never appears in a signature here, only inside the guarded
+   * branch, so nothing in this class references an API 34 class on a device that
+   * does not have one.
+   */
+  private fun antennaInfoPayload(): Map<String, Any?>? {
+    if (Build.VERSION.SDK_INT < ANTENNA_INFO_SDK) {
+      return null
+    }
+    val info = nfcAdapter()?.nfcAntennaInfo ?: return null
+
+    return mapOf(
+      "deviceWidth" to info.deviceWidth,
+      "deviceHeight" to info.deviceHeight,
+      "deviceFoldable" to info.isDeviceFoldable,
+      "antennas" to info.availableNfcAntennas.map { antenna ->
+        mapOf("locationX" to antenna.locationX, "locationY" to antenna.locationY)
+      },
+    )
+  }
 
   /**
    * Asks the platform to route taps to this app's service while it is in front.

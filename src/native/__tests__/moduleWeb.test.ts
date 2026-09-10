@@ -369,6 +369,8 @@ describe('everything a browser cannot reach', () => {
     await expect(module.setObserveModeEnabled(true)).resolves.toBe(false);
     await expect(module.respondToHce('r', new Uint8Array())).resolves.toBe(false);
     await expect(module.isVasSupported()).resolves.toBe(false);
+    await expect(module.getAntennaInfo()).resolves.toBeNull();
+    await expect(module.isSecureNfcEnabled()).resolves.toBe(false);
     await expect(module.stopHce()).resolves.toBeUndefined();
   });
 });

@@ -1,0 +1,118 @@
+---
+title: 'Where the antenna is, and what the settings allow'
+sidebarTitle: 'Antenna and secure NFC'
+description: 'Two things only the device can answer: where its NFC antenna physically sits, and whether NFC is restricted to an unlocked screen.'
+---
+
+Both of these describe the hardware in the user's hand rather than anything your app
+does with it. They exist because the two most common complaints about an NFC screen —
+"it never reads" and "nothing happens on the lock screen" — usually have nothing to do
+with the tag.
+
+## Where to tell the user to tap
+
+Android 14 added an API that reports where the NFC antenna physically sits on the
+device. It is the difference between a card illustration in the middle of the screen
+and one over the antenna.
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+
+const info = await nfc.getAntennaInfo();
+
+if (info !== null) {
+  const [antenna] = info.antennas;
+  // Millimetres from the bottom-left corner of the device.
+  console.log(antenna.locationX, antenna.locationY);
+}
+```
+
+<Info>
+  The coordinates are millimetres from the **bottom-left corner of the device** — the corner of the
+  hardware, bezels included. They are not screen coordinates and not pixels, so they mean nothing on
+  their own. That is why `deviceWidth` and `deviceHeight` come back in the same object: it is the
+  ratio of the two that becomes a position you can lay out against.
+</Info>
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+
+const info = await nfc.getAntennaInfo();
+const antenna = info?.antennas[0];
+
+const hint =
+  info === null || antenna === undefined
+    ? null
+    : {
+        left: `${(antenna.locationX / info.deviceWidth) * 100}%`,
+        // Measured up from the bottom, which is the opposite of a CSS `top`.
+        bottom: `${(antenna.locationY / info.deviceHeight) * 100}%`,
+      };
+```
+
+A phone can report more than one antenna, and `antennas` is ordered as the platform
+gives it, with no promise about which is the "main" one. Most devices report exactly
+one.
+
+### When it is null
+
+`null` is a normal answer, not a failure, and it covers four different situations on
+purpose:
+
+| Situation                              | Why                                                         |
+| -------------------------------------- | ----------------------------------------------------------- |
+| iOS                                    | CoreNFC never reports antenna geometry, at any iOS version. |
+| Web                                    | A page is handed records, never anything about the radio.   |
+| Android 13 and earlier                 | The API arrived in Android 14 (API 34).                     |
+| Android 14 where the OEM left it empty | Common. The numbers are the manufacturer's to fill in.      |
+
+The last row is the one worth designing around: it means the `null` branch is not "the
+iOS branch" by another name, and a device on the right Android version can still
+decline to answer. Keep the generic illustration as the fallback.
+
+Because of that, `getAntennaInfo()` resolves `null` rather than rejecting — a screen
+laying out a hint needs no `try`/`catch`. If you want the answer without the round
+trip, `nfc.capabilities?.antennaInfo` is the same fact as a boolean.
+
+<Note>
+  On a foldable, `deviceFoldable` is `true` and every number describes the device **unfolded**. A
+  folded phone needs its own arithmetic before any of this reaches a layout, and the platform gives
+  you nothing to do it with — so on a foldable, showing the generic hint is usually the better
+  answer.
+</Note>
+
+## Secure NFC
+
+Android 10 added a setting called **Secure NFC**: when it is on, the device reads tags
+only while the screen is unlocked. It is off by default on most devices and on by
+default on a few, and a user can turn it on without connecting it to anything.
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+
+if (await nfc.isSecureNfcEnabled()) {
+  // A tap on the lock screen will do nothing at all. Say so, rather than
+  // letting the scan sit there looking broken.
+}
+```
+
+This is a call rather than a capability because the user can change it from the
+settings while your app is running. Whether the device has the setting at all is
+`nfc.capabilities?.secureNfc`, which is `false` below Android 10, on iOS and on the
+web — and `isSecureNfcEnabled()` is `false` there too.
+
+It matters most for [background and launch tags](/setup/background-reading): a tap
+against a locked phone is exactly what that feature is for, and Secure NFC is the
+reason it silently does nothing on some devices. A reading session started from a
+screen the user is looking at is unaffected, because the screen is unlocked by
+definition.
+
+## What each platform reports
+
+|                        |   iOS   |                   Android                   | Web (Chrome) |
+| ---------------------- | :-----: | :-----------------------------------------: | :----------: |
+| `getAntennaInfo()`     | `null`  | API 34+, and only when the OEM filled it in |    `null`    |
+| `isSecureNfcEnabled()` | `false` |                   API 29+                   |   `false`    |
+
+Neither call needs a permission, an entitlement, or anything in the manifest. Both are
+safe to call on every platform on startup.

@@ -52,7 +52,24 @@ interface MockState {
   transceiveResponse: Uint8Array;
   sessionId: string | null;
   nextHandle: number;
+  antennaInfo: AntennaInfo | null;
+  secureNfcEnabled: boolean;
 }
+
+interface AntennaInfo {
+  deviceWidth: number;
+  deviceHeight: number;
+  deviceFoldable: boolean;
+  antennas: { locationX: number; locationY: number }[];
+}
+
+/** A plausible mid-size phone with one antenna in the upper middle of the back. */
+const DEFAULT_ANTENNA_INFO: AntennaInfo = {
+  deviceWidth: 71,
+  deviceHeight: 147,
+  deviceFoldable: false,
+  antennas: [{ locationX: 35, locationY: 110 }],
+};
 
 const state: MockState = {
   supported: true,
@@ -61,6 +78,8 @@ const state: MockState = {
   transceiveResponse: new Uint8Array([0x90, 0x00]),
   sessionId: null,
   nextHandle: 0,
+  antennaInfo: DEFAULT_ANTENNA_INFO,
+  secureNfcEnabled: false,
 };
 
 function emit(event: string, payload: unknown): void {
@@ -95,6 +114,8 @@ export const __nfcKitMock = {
     state.transceiveResponse = new Uint8Array([0x90, 0x00]);
     state.sessionId = null;
     state.nextHandle = 0;
+    state.antennaInfo = DEFAULT_ANTENNA_INFO;
+    state.secureNfcEnabled = false;
   },
 
   setAvailability(supported: boolean, enabled: boolean): void {
@@ -106,6 +127,19 @@ export const __nfcKitMock = {
   /** Bytes the next `readNdef` returns. Encode them with the library's codec. */
   setNdefMessage(bytes: Uint8Array): void {
     state.ndefMessage = bytes;
+  },
+
+  /**
+   * What `getAntennaInfo` reports. `null` stands in for a device that does not
+   * say where its antenna is, which is most of them.
+   */
+  setAntennaInfo(info: AntennaInfo | null): void {
+    state.antennaInfo = info;
+  },
+
+  /** Whether NFC is restricted to an unlocked screen. */
+  setSecureNfcEnabled(enabled: boolean): void {
+    state.secureNfcEnabled = enabled;
   },
 
   /** Bytes the next `transceive` returns. */
@@ -182,7 +216,7 @@ export const __nfcKitMock = {
 /* The mocked native surface                                                  */
 /* -------------------------------------------------------------------------- */
 
-export const contractVersion = 5;
+export const contractVersion = 6;
 
 export const capabilities = {
   platform: 'android',
@@ -195,6 +229,8 @@ export const capabilities = {
   pollingFrames: true,
   vas: false,
   backgroundReading: true,
+  antennaInfo: true,
+  secureNfc: true,
 };
 
 export function addListener(event: string, listener: Listener): { remove(): void } {
@@ -222,6 +258,14 @@ export function isEnabled(): Promise<boolean> {
 
 export function openSettings(): Promise<void> {
   return record('openSettings', [], undefined);
+}
+
+export function getAntennaInfo(): Promise<AntennaInfo | null> {
+  return record('getAntennaInfo', [], state.antennaInfo);
+}
+
+export function isSecureNfcEnabled(): Promise<boolean> {
+  return record('isSecureNfcEnabled', [], state.secureNfcEnabled);
 }
 
 export function startSession(sessionId: string, options: unknown): Promise<void> {

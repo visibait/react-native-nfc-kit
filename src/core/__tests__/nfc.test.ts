@@ -78,6 +78,49 @@ describe('availability', () => {
   });
 });
 
+describe('antenna location', () => {
+  const layout = {
+    deviceWidth: 71,
+    deviceHeight: 147,
+    deviceFoldable: false,
+    antennas: [{ locationX: 35, locationY: 110 }],
+  };
+
+  it('reports what the platform says, unchanged', async () => {
+    native.antennaInfo = layout;
+
+    await expect(nfc.getAntennaInfo()).resolves.toEqual(layout);
+  });
+
+  it('is null on a device that does not say where its antenna is', async () => {
+    // The common case even on Android 14: the manufacturer left it empty. It is
+    // not an error, and a caller drawing a hint has to handle it anyway.
+    native.antennaInfo = null;
+
+    await expect(nfc.getAntennaInfo()).resolves.toBeNull();
+  });
+
+  it('is null rather than a throw when NFC is unavailable', async () => {
+    setNativeModuleForTests(null);
+
+    await expect(nfc.getAntennaInfo()).resolves.toBeNull();
+  });
+});
+
+describe('secure NFC', () => {
+  it('reports whether NFC is restricted to an unlocked screen', async () => {
+    native.secureNfcEnabled = true;
+
+    await expect(nfc.isSecureNfcEnabled()).resolves.toBe(true);
+  });
+
+  it('is false rather than a throw when NFC is unavailable', async () => {
+    setNativeModuleForTests(null);
+
+    await expect(nfc.isSecureNfcEnabled()).resolves.toBe(false);
+  });
+});
+
 describe('capabilities', () => {
   it('exposes what this device can do, without a round trip', () => {
     expect(nfc.capabilities).toMatchObject({
@@ -102,6 +145,14 @@ describe('capabilities', () => {
   it('is null when NFC is unavailable', () => {
     setNativeModuleForTests(null);
     expect(nfc.capabilities).toBeNull();
+  });
+
+  it('carries what the device says about its antenna and its NFC settings', () => {
+    setNativeModuleForTests(
+      new FakeNativeModule({ capabilities: { antennaInfo: true, secureNfc: true } }),
+    );
+
+    expect(nfc.capabilities).toMatchObject({ antennaInfo: true, secureNfc: true });
   });
 
   describe('supports', () => {

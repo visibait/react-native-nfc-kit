@@ -3,7 +3,7 @@ import UIKit
 @preconcurrency import CoreNFC
 
 /// Bumped together with `CONTRACT_VERSION` in `src/native/contract.ts`.
-private let contractVersion = 5
+private let contractVersion = 6
 
 /// Mirrors `NativeSessionOptions`. The Android fields are accepted and ignored.
 internal struct SessionOptions: Record {
@@ -138,7 +138,14 @@ public final class NfcKitModule: Module, @unchecked Sendable {
         // Apple has granted the entitlement is not something that can be asked,
         // only attempted. `readVas` reports entitlementMissing when it has not.
         "vas": NFCReaderSession.readingAvailable,
-        "backgroundReading": false
+        "backgroundReading": false,
+        // CoreNFC never says where the antenna is. Apple documents it as the top
+        // edge of the device and leaves it at that, and a number invented here
+        // would be a guess an app then drew on screen.
+        "antennaInfo": false,
+        // There is no equivalent setting: iOS reads tags with the screen locked
+        // and offers nothing to switch off.
+        "secureNfc": false
       ] as [String: Any]
     }
 
@@ -172,6 +179,17 @@ public final class NfcKitModule: Module, @unchecked Sendable {
         "iOS has no NFC settings screen and no way to link to one. NFC is always on when the "
           + "device supports it."
       )
+    }
+
+    AsyncFunction("getAntennaInfo") { () -> [String: Any]? in
+      // Always nil, and this is the final answer rather than a placeholder.
+      // CoreNFC exposes no antenna geometry at any iOS version.
+      nil
+    }
+
+    AsyncFunction("isSecureNfcEnabled") { () -> Bool in
+      // iOS has no secure NFC setting, so nothing is restricting anything.
+      false
     }
 
     /* -- Session lifecycle ----------------------------------------------- */

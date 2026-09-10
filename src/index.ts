@@ -29,7 +29,13 @@
 /* -------------------------------------------------------------------------- */
 
 export { nfc } from './core/nfc.js';
-export type { NfcAvailability, NfcCapabilities, TagStreamOptions } from './core/nfc.js';
+export type {
+  NfcAntenna,
+  NfcAntennaInfo,
+  NfcAvailability,
+  NfcCapabilities,
+  TagStreamOptions,
+} from './core/nfc.js';
 
 export type { BackgroundTagOptions } from './core/background.js';
 
