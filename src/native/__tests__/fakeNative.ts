@@ -126,9 +126,25 @@ export class FakeNativeModule implements NativeNfcKitModule {
     this.rejections.set(method, error);
   }
 
-  /** Makes `method` hang. Returns a function that lets it resolve. */
+  /** Makes `method` hang until `settlePending` is called, or forever. */
   hangOn(method: string): void {
     this.pending.set(method, () => {});
+  }
+
+  /**
+   * Lets a hung call resolve.
+   *
+   * Needed to test what happens when a native answer arrives *after* the caller
+   * has gone -- a screen navigated away from mid-call. That is a real race, and
+   * the only way to observe the guard against it is to run it.
+   */
+  settlePending(method: string): void {
+    const settle = this.pending.get(method);
+    if (settle === undefined) {
+      throw new Error(`No pending call to "${method}"`);
+    }
+    this.pending.delete(method);
+    settle();
   }
 
   emit<E extends NativeEventName>(event: E, payload: Parameters<NativeEventMap[E]>[0]): void {
@@ -194,8 +210,12 @@ export class FakeNativeModule implements NativeNfcKitModule {
       return Promise.reject(rejection);
     }
     if (this.pending.has(method)) {
-      return new Promise<T>(() => {
-        // Deliberately never settles, so abort and timeout can be observed.
+      return new Promise<T>((resolve) => {
+        // Settles only when the test says so, so abort, timeout and
+        // answer-after-unmount can all be observed.
+        this.pending.set(method, () => {
+          resolve(result);
+        });
       });
     }
     return Promise.resolve(result);

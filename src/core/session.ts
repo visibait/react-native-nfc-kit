@@ -36,7 +36,7 @@ import type {
   TagTech,
 } from '../native/contract.js';
 import { callNative, fromNativeErrorPayload } from '../native/errors.js';
-import { Deferred, runWithDeadline, type Deadline } from './async.js';
+import { Deferred, abortedError, runWithDeadline, type Deadline } from './async.js';
 import { Listeners, type Subscription } from './subscription.js';
 import { createTag, type Tag, type TagRuntime } from './tag.js';
 
@@ -472,6 +472,13 @@ export async function openSession(
   options: ScanOptions,
 ): Promise<NfcSession> {
   validateOptions(options);
+
+  // Checked before anything else touches the radio. A session that opens and
+  // immediately closes still raises the iOS sheet for a frame and still takes
+  // Android's controller, so "already aborted" has to mean "nothing happened".
+  if (options.signal?.aborted === true) {
+    throw abortedError('Opening the session');
+  }
 
   if (activeSession !== null && !activeSession.closed) {
     throw new NfcError({

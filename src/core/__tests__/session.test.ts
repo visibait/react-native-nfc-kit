@@ -259,6 +259,51 @@ describe('withTag', () => {
   });
 });
 
+describe('a signal that has already fired', () => {
+  it('stops openSession before it reaches the radio', async () => {
+    // Opening and immediately closing is not the same as not opening: it still
+    // raises the iOS sheet for a moment and still takes Android's controller.
+    const native = new FakeNativeModule();
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      openSession(deps(native), { ...NDEF_SCAN, signal: controller.signal }),
+    ).rejects.toMatchObject({ code: 'aborted' });
+
+    expect(native.callsTo('startSession')).toHaveLength(0);
+    expect(getActiveSessionIdForTests()).toBeNull();
+  });
+
+  it('stops withTag before it reaches the radio', async () => {
+    const native = new FakeNativeModule();
+    const controller = new AbortController();
+    controller.abort();
+    const work = jest.fn();
+
+    await expect(
+      withTag(deps(native), { ...NDEF_SCAN, signal: controller.signal }, work),
+    ).rejects.toMatchObject({ code: 'aborted' });
+
+    expect(native.callsTo('startSession')).toHaveLength(0);
+    expect(native.callsTo('closeSession')).toHaveLength(0);
+    expect(work).not.toHaveBeenCalled();
+  });
+
+  it('leaves the slot free for the next session', async () => {
+    const native = new FakeNativeModule();
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      openSession(deps(native), { ...NDEF_SCAN, signal: controller.signal }),
+    ).rejects.toMatchObject({ code: 'aborted' });
+
+    // A refused open must not leave `systemBusy` behind for everyone after it.
+    await expect(openSession(deps(native), NDEF_SCAN)).resolves.toBeDefined();
+  });
+});
+
 describe('one session at a time', () => {
   it('rejects a second session with systemBusy and an explanation', async () => {
     // iOS allows exactly one NFCReaderSession system-wide; a second begin() fails

@@ -116,6 +116,15 @@ const config: Config = {
       lines: 100,
       statements: 100,
     },
+    // The hooks are held to 100% too, including their unmount races: every
+    // branch there is a state update that either happens after the component is
+    // gone or does not, and both outcomes are reachable from a test.
+    './src/react/': {
+      branches: 100,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
     // The config plugin is held to the same bar for the same reason: it is plain
     // TypeScript over plain objects, and every branch of it decides something
     // that fails silently on a device -- an entitlement that is never written, a

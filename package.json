@@ -25,6 +25,16 @@
         "default": "./build/cjs/ndef/index.js"
       }
     },
+    "./react": {
+      "import": {
+        "types": "./build/esm/react/index.d.ts",
+        "default": "./build/esm/react/index.js"
+      },
+      "require": {
+        "types": "./build/cjs/react/index.d.ts",
+        "default": "./build/cjs/react/index.js"
+      }
+    },
     "./protocols": {
       "import": {
         "types": "./build/esm/protocols/index.d.ts",
@@ -43,6 +53,7 @@
     "plugin/build",
     "ndef",
     "protocols",
+    "react",
     "mocks",
     "ios",
     "android",
@@ -116,6 +127,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
+    "@testing-library/react-native": "^14.0.1",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.1.1",
     "babel-preset-expo": "~57.0.0",
@@ -129,6 +141,7 @@
     "publint": "^0.3.24",
     "react": "19.2.8",
     "react-native": "0.86.3",
+    "test-renderer": "^1.2.0",
     "ts-node": "^10.9.2",
     "typescript": "~5.9.2"
   },
