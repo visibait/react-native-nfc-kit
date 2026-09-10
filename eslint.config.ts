@@ -44,6 +44,7 @@ export default defineConfig([
   globalIgnores([
     'build/**',
     'plugin/build/**',
+    'mocks/**',
     'coverage/**',
     'node_modules/**',
     '.tmp/**',

@@ -145,6 +145,14 @@ export interface NativeCapabilities {
 
 export interface NativeSessionOptions {
   readonly techs: readonly string[];
+  /**
+   * iOS: `NFCTagReaderSession.PollingOption` names to enable.
+   *
+   * `null` lets native derive them from `techs`, which is what almost every
+   * caller wants; the override exists for a reader that needs an option no
+   * technology in the list implies, such as `pace`.
+   */
+  readonly iosPollingOptions: readonly string[] | null;
   /** iOS: text shown in the system scanning sheet. */
   readonly iosAlertMessage: string | null;
   readonly iosInvalidateAfterFirstRead: boolean;

@@ -1,6 +1,7 @@
 # Build output
 build/
 plugin/build/
+mocks/
 lib/
 *.tsbuildinfo
 

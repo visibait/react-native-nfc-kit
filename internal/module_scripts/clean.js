@@ -3,7 +3,14 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const targets = ['build', path.join('plugin', 'build'), '.tmp', 'coverage', 'tsconfig.tsbuildinfo'];
+const targets = [
+  'build',
+  'mocks',
+  path.join('plugin', 'build'),
+  '.tmp',
+  'coverage',
+  'tsconfig.tsbuildinfo',
+];
 
 for (const target of targets) {
   const abs = path.join(process.cwd(), target);

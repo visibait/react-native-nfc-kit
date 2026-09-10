@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    // CommonJS so a consumer's Jest can require it with no transform at all:
+    // many projects do not transform TypeScript inside node_modules, and a mock
+    // that needs a build step is a mock that silently does not load.
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "verbatimModuleSyntax": false,
+    "rootDir": "./mocks-src",
+    "outDir": "./mocks",
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false,
+    "inlineSources": false,
+    "types": []
+  },
+  "include": ["./mocks-src"]
+}

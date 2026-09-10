@@ -1,5 +1,6 @@
 build/
 plugin/build/
+mocks/
 coverage/
 node_modules/
 .tmp/
