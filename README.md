@@ -1,11 +1,20 @@
 # react-native-nfc-kit
 
+[![npm](https://img.shields.io/npm/v/react-native-nfc-kit)](https://www.npmjs.com/package/react-native-nfc-kit)
+[![license](https://img.shields.io/npm/l/react-native-nfc-kit)](LICENSE)
+
 A modern NFC library for React Native and Expo. Built on the Expo Modules API with
 Swift and Kotlin, New Architecture native, and typed end to end.
 
-> **Status: pre-release (`0.0.0`).** The NDEF codec, the session API and both
-> native implementations are in place and building in CI. Not yet validated
-> against real tags on real hardware -- see [the roadmap](#roadmap).
+```bash
+npx expo install react-native-nfc-kit
+```
+
+> **Status: `0.9.0`.** Every layer is implemented and tested — 1342 tests, with the
+> NDEF codec, the protocol layers, card emulation, the Web NFC shim and the config
+> plugin each at 100% coverage. What is missing is not code: **no row of
+> [the device matrix](docs/device-matrix.md) has been run yet.** That is the only
+> thing between this and a `1.0.0`, and it is why the version says so.
 
 ## Why another NFC library
 
@@ -49,9 +58,16 @@ device (iPhone 7 or later for NDEF, iPhone XS or later for background tag readin
 
 ## What works today
 
-The NDEF codec is done: `react-native-nfc-kit/ndef` is pure TypeScript over
-`Uint8Array` with no native dependency, so it works in a bundler, in Node and on
-the web. See [docs/ndef.md](docs/ndef.md).
+All of it: reading and writing on both platforms, the protocol layers, card
+emulation on Android, background tags, Wallet passes, React hooks, and the same API
+in a browser. The sections below walk through each one.
+
+### The NDEF codec
+
+`react-native-nfc-kit/ndef` is pure TypeScript over `Uint8Array` with no native
+dependency, so it works in a bundler, in Node and on the web — useful on a server
+that builds messages, and in tests that never touch a device. See
+[docs/ndef.md](docs/ndef.md).
 
 ```ts
 import {
@@ -255,30 +271,34 @@ Nothing here is claimed to work because it looks right.
 | Web NFC shim          | The record mapping is round-tripped in both directions, and the whole boundary is driven through a fake `NDEFReader`                   |
 | Wallet passes         | Validation and decoding tested against the fake native module; the read itself needs an entitlement Apple grants case by case          |
 | Card emulation        | The emulated Type 4 tag is driven through a whole reader conversation, using the same functions an app uses to talk to a real card     |
-| Config plugin         | 104 tests through Expo's own introspection compiler, so the assertions are about what `expo prebuild` produces                         |
+| Config plugin         | 150 tests through Expo's own introspection compiler, so the assertions are about what `expo prebuild` produces                         |
 | Leaks                 | 30 iterations of every entry point, asserting no session, no native listener and no handle is left behind                              |
 | The documentation     | Every import in a code block is checked against the barrels that define it, and the site's navigation against the files on disk        |
 | The published package | `publint` and `arethetypeswrong` against a packed tarball, so a broken `exports` map fails before a user finds it                      |
 
-**What none of that covers:** behaviour against a real tag. No emulator or
-simulator can present one. Hardware validation is tracked separately and is a
-release requirement, not an afterthought.
+1342 tests in total, across three Jest projects: one in plain Node for the layers
+that need no platform, one under `jest-expo` for everything above the native
+boundary, and one for the config plugin.
+
+**What none of that covers:** behaviour against a real tag. No emulator or simulator
+can present one. That is [the device matrix](docs/device-matrix.md), it is a release
+requirement rather than an afterthought, and none of it has been run.
 
 ## Roadmap
 
-| Phase | Contents                                                              | Status      |
-| ----- | --------------------------------------------------------------------- | ----------- |
-| M0    | Repository scaffold, tooling, CI                                      | done        |
-| M1    | NDEF codec (pure TypeScript, no native)                               | done        |
-| M2    | Android core: reader mode, tech adapters, errors, sessions, tags      | done        |
-| M3    | iOS core: session actor, one-shot continuations, tag handles          | done        |
-| M4    | Protocol layers: ISO 7816, ISO 15693, FeliCa, NTAG/Ultralight         | done        |
-| M5    | Config plugin, bare React Native, React hooks                         | done        |
-| M6    | Continuous reading, `onTagLost`, observe mode, background tag reading | next        |
-| M7    | Host card emulation (Android)                                         | done        |
-| M8    | Observe mode, polling loop frames                                     | done        |
-| M9    | Web NFC shim, documentation site, migration guide                     | done        |
-| M10   | Error reference, device matrix, soak tests, release pipeline          | in progress |
+| Phase | Contents                                                         | Status                   |
+| ----- | ---------------------------------------------------------------- | ------------------------ |
+| M0    | Repository scaffold, tooling, CI                                 | done                     |
+| M1    | NDEF codec (pure TypeScript, no native)                          | done                     |
+| M2    | Android core: reader mode, tech adapters, errors, sessions, tags | done                     |
+| M3    | iOS core: session actor, one-shot continuations, tag handles     | done                     |
+| M4    | Protocol layers: ISO 7816, ISO 15693, FeliCa, NTAG/Ultralight    | done                     |
+| M5    | Config plugin, bare React Native, React hooks                    | done                     |
+| M6    | Tag removal reporting, background tag reading                    | done                     |
+| M7    | Host card emulation (Android)                                    | done                     |
+| M8    | Observe mode, polling loop frames                                | done                     |
+| M9    | Web NFC shim, documentation site, migration guide                | done                     |
+| M10   | Error reference, device matrix, soak tests, release pipeline     | done, matrix not yet run |
 
 Out of scope, deliberately: Apple's NFC & SE Platform (`CredentialSession`). It requires
 an agreement with Apple, ABR onboarding, and an accredited-lab applet security review —

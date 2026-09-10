@@ -71,7 +71,11 @@ jobs:
           # With changesets pending, this opens or updates a pull request that
           # applies them. With none, and a version not yet on npm, it publishes.
           version: npm run release:version
-          publish: npm publish
+          # `changeset publish`, not `npm publish`: it queries the registry and
+          # publishes only versions that are not there yet. A bare `npm publish`
+          # fails with EPUBLISHCONFLICT on every push whose version is already
+          # released, which is most of them.
+          publish: npx changeset publish
           commit: 'chore: release'
           title: 'chore: release'
         env:
