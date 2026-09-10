@@ -426,15 +426,29 @@ class SessionImpl implements NfcSession {
   }
 }
 
-/** Adds `Symbol.asyncDispose` when the runtime has it, so `await using` works. */
+/**
+ * The symbol `await using` looks for.
+ *
+ * `Symbol.asyncDispose` is not everywhere yet: it is missing on Node 20 and 22,
+ * and on Hermes, which is the engine most React Native apps actually run. So
+ * defining the disposer only when the native symbol exists would mean
+ * `await using` silently doing nothing for most users -- a session left open,
+ * which is the exact failure this API exists to prevent.
+ *
+ * `Symbol.for('Symbol.asyncDispose')` is the documented fallback: it is what
+ * TypeScript's downlevelled `await using` helper looks up when the native symbol
+ * is absent, so registering under it makes the syntax work on those engines too.
+ */
+const ASYNC_DISPOSE: symbol =
+  (Symbol as { asyncDispose?: symbol }).asyncDispose ?? Symbol.for('Symbol.asyncDispose');
+
+/** Adds the disposer so `await using` closes the session. */
 function makeDisposable(session: NfcSession): NfcSession {
-  const asyncDispose = (Symbol as { asyncDispose?: symbol }).asyncDispose;
-  if (asyncDispose !== undefined) {
-    Object.defineProperty(session, asyncDispose, {
-      value: () => session.close(),
-      enumerable: false,
-    });
-  }
+  Object.defineProperty(session, ASYNC_DISPOSE, {
+    value: () => session.close(),
+    enumerable: false,
+    configurable: true,
+  });
   return session;
 }
 

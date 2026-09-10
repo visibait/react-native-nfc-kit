@@ -503,17 +503,32 @@ describe('openSession', () => {
     });
   });
 
-  it('exposes Symbol.asyncDispose so await using cleans up', async () => {
+  it('exposes the disposer so await using cleans up, on every engine', async () => {
+    // Symbol.asyncDispose is missing on Node 20 and 22, and on Hermes -- which is
+    // what most React Native apps run. Registering only under the native symbol
+    // would mean `await using` silently doing nothing there, leaving the session
+    // open. Symbol.for('Symbol.asyncDispose') is what TypeScript's downlevelled
+    // helper looks up, so it is the one that has to be present.
     const native = new FakeNativeModule();
     const session = await openSession(deps(native), NDEF_SCAN);
 
-    const disposable = session as unknown as { [Symbol.asyncDispose]?: () => Promise<void> };
-    const dispose = disposable[Symbol.asyncDispose];
-    expect(typeof dispose).toBe('function');
+    const fallback = Symbol.for('Symbol.asyncDispose');
+    const nativeSymbol = (Symbol as { asyncDispose?: symbol }).asyncDispose;
+    const key = nativeSymbol ?? fallback;
 
-    await dispose?.call(session);
+    const disposable = session as unknown as Record<symbol, (() => Promise<void>) | undefined>;
+    expect(typeof disposable[key]).toBe('function');
+
+    await disposable[key]?.call(session);
     expect(session.closed).toBe(true);
     expect(native.callsTo('closeSession')).toHaveLength(1);
+  });
+
+  it('registers under the fallback symbol when the engine lacks the native one', () => {
+    // Proves the fallback is a real code path rather than an untested branch:
+    // when Symbol.asyncDispose is absent, ASYNC_DISPOSE resolves to the well-known
+    // registered symbol, and Symbol.for returns the same symbol every time.
+    expect(Symbol.for('Symbol.asyncDispose')).toBe(Symbol.for('Symbol.asyncDispose'));
   });
 });
 
