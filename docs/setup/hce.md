@@ -1,4 +1,7 @@
-# Card emulation (HCE)
+---
+title: Card emulation (HCE)
+description: Answering a terminal as though the phone were a card, and holding it silent until the user confirms.
+---
 
 Making the phone answer a terminal as though it were a card: a door reader, a
 turnstile, a check-in desk, another phone.

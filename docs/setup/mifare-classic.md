@@ -1,4 +1,7 @@
-# MIFARE Classic
+---
+title: MIFARE Classic
+description: Why it is impossible on iOS, chipset-dependent on Android, and what to use instead.
+---
 
 Read this page before designing anything around MIFARE Classic, because the
 constraint is not a configuration one.

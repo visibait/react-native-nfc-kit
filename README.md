@@ -195,6 +195,19 @@ npx pod-install
 There is no `prebuild` in a bare project, so entitlements and the Android manifest are
 edited by hand. See [docs/setup/bare-react-native.md](docs/setup/bare-react-native.md).
 
+## Documentation
+
+The full documentation lives under [docs/](docs/) and is built as a Mintlify site
+from [docs/docs.json](docs/docs.json). Start at [docs/index.md](docs/index.md), or
+go straight to the [setup page for your use case](docs/setup/overview.md).
+
+## Coming from react-native-nfc-manager
+
+There is a migration guide with an API equivalence table, the six differences that
+will change your code, and a worked example:
+[docs/migrating-from-nfc-manager.md](docs/migrating-from-nfc-manager.md). Both
+libraries can be installed side by side, so it can be done a screen at a time.
+
 ## Setup, per use case
 
 Most NFC support questions are setup questions, so each page covers one case and
@@ -231,6 +244,7 @@ Nothing here is claimed to work because it looks right.
 | Wallet passes         | Validation and decoding tested against the fake native module; the read itself needs an entitlement Apple grants case by case          |
 | Card emulation        | The emulated Type 4 tag is driven through a whole reader conversation, using the same functions an app uses to talk to a real card     |
 | Config plugin         | 104 tests through Expo's own introspection compiler, so the assertions are about what `expo prebuild` produces                         |
+| The documentation     | Every import in a code block is checked against the barrels that define it, and the site's navigation against the files on disk        |
 | The published package | `publint` and `arethetypeswrong` against a packed tarball, so a broken `exports` map fails before a user finds it                      |
 
 **What none of that covers:** behaviour against a real tag. No emulator or
@@ -250,8 +264,8 @@ release requirement, not an afterthought.
 | M6    | Continuous reading, `onTagLost`, observe mode, background tag reading | next   |
 | M7    | Host card emulation (Android)                                         | done   |
 | M8    | Observe mode, polling loop frames                                     | done   |
-| M9    | Web NFC shim, documentation site, migration guide                     | next   |
-| M10   | Device matrix pass, soak tests, `1.0.0`                               |        |
+| M9    | Web NFC shim, documentation site, migration guide                     | done   |
+| M10   | Error reference, device matrix pass, soak tests, `1.0.0`              | next   |
 
 Out of scope, deliberately: Apple's NFC & SE Platform (`CredentialSession`). It requires
 an agreement with Apple, ABR onboarding, and an accredited-lab applet security review —

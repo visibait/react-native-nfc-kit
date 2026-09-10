@@ -1,4 +1,7 @@
-# Background tag reading
+---
+title: Background tag reading
+description: Handling a tag tapped while the app is closed, and the Android 17 permission that decides whether it arrives.
+---
 
 Configure this only to handle a tag tapped while your app is **closed or in the
 background**. Reader mode — `nfc.withTag`, `nfc.openSession`, `nfc.onTag` — needs

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "react-native-nfc-kit",
+  "description": "Modern, typed NFC for React Native and Expo.",
+  "colors": {
+    "primary": "#0F766E",
+    "light": "#2DD4BF",
+    "dark": "#0F766E"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Start here",
+        "pages": ["index", "setup/overview"]
+      },
+      {
+        "group": "Setup, per use case",
+        "pages": [
+          "setup/ndef",
+          "setup/iso7816",
+          "setup/felica",
+          "setup/mifare-classic",
+          "setup/background-reading",
+          "setup/hce",
+          "setup/vas",
+          "setup/web",
+          "setup/bare-react-native"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": ["ndef", "migrating-from-nfc-manager"]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/visibait/react-native-nfc-kit"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/visibait/react-native-nfc-kit"
+    }
+  }
+}

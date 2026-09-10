@@ -1,4 +1,7 @@
-# Reading an Apple Wallet pass (VAS)
+---
+title: Reading an Apple Wallet pass
+description: The till side of Value Added Service, and the entitlement Apple grants case by case.
+---
 
 Value Added Service is how a till reads a loyalty card or a ticket out of Apple
 Wallet. This is the till side: your app asks a nearby iPhone or Watch for a pass of

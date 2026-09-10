@@ -1,4 +1,7 @@
-# Bare React Native
+---
+title: Bare React Native
+description: Installing without the Expo SDK, and writing by hand what prebuild would have written.
+---
 
 This library is built on the Expo Modules API, which does **not** require the Expo
 SDK. It requires the `expo` package, which ships the module and autolinking

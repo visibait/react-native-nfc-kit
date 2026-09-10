@@ -1,4 +1,7 @@
-# Reading and writing NDEF
+---
+title: Reading and writing NDEF
+description: The default setup: the entitlement, the usage description and the manifest a tag read needs.
+---
 
 This is the default setup: nothing to configure beyond installing the plugin.
 
@@ -93,16 +96,26 @@ unconditionally because it is harmless when no intents are configured.
 Writing needs no extra configuration, but it does need the tag to allow it:
 
 ```ts
+import { createUriRecord, encodedMessageLength } from 'react-native-nfc-kit/ndef';
+
+const records = [createUriRecord('https://www.ventry.es/entrada')];
+
 await nfc.withTag({ tech: ['ndef'] }, async (tag) => {
   if (!tag.is('ndef')) throw new Error('Not an NDEF tag');
 
   const status = await tag.getNdefStatus();
   if (!status.writable) throw new Error('This tag is locked');
-  if (status.capacity < bytes.length) throw new Error('Message too large for this tag');
+  if (status.capacity < encodedMessageLength(records)) {
+    throw new Error('Message too large for this tag');
+  }
 
-  await tag.writeNdef(bytes);
+  await tag.writeNdef(records);
 });
 ```
+
+`writeNdef` takes records; `writeNdefBytes` takes an already-encoded message, for
+when you have bytes from elsewhere. `readNdef` and `readNdefBytes` are the same pair
+in the other direction.
 
 A blank factory tag is often _NDEF formatable_ rather than NDEF, which is a
 different technology: ask for `tech: ['ndef', 'ndefFormatable']` and narrow with

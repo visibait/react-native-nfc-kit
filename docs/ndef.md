@@ -1,4 +1,7 @@
-# The NDEF codec
+---
+title: The NDEF codec
+description: Building and parsing NDEF messages, with no native dependency, in a bundler or in Node.
+---
 
 ```ts
 import { ... } from 'react-native-nfc-kit/ndef';

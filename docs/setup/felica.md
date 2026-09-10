@@ -1,4 +1,7 @@
-# Reading FeliCa
+---
+title: Reading FeliCa
+description: Suica, PASMO and Octopus, and the system codes iOS filters on at the radio.
+---
 
 Suica, PASMO, Octopus, and the rest of the FeliCa family.
 

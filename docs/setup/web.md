@@ -1,4 +1,7 @@
-# Web NFC
+---
+title: Web NFC
+description: The same API in a browser, what a browser can actually do, and what it refuses rather than guessing.
+---
 
 The same API works in a browser, backed by Web NFC. No import changes and no
 platform branches:

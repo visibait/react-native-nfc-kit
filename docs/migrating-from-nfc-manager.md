@@ -1,0 +1,238 @@
+---
+title: Migrating from react-native-nfc-manager
+description: An API equivalence table, the six differences that will change your code, and a worked example.
+---
+
+A screen at a time, not all at once. The two libraries can be installed side by
+side: they both use reader mode on Android and a `NFCTagReaderSession` on iOS, and
+only one session can be open at a time — so as long as you are not scanning from
+two screens simultaneously, a partial migration works.
+
+Start with a read-only screen. It is the smallest piece of surface and it exercises
+almost everything: availability, session lifecycle, a tag, and the NDEF codec.
+
+## The shape of the change
+
+`nfc-manager` gives you a module you drive through a sequence of calls, and you own
+the session:
+
+```ts
+// Before
+await NfcManager.start();
+try {
+  await NfcManager.requestTechnology(NfcTech.Ndef);
+  const tag = await NfcManager.getTag();
+  const message = await NfcManager.ndefHandler.getNdefMessage();
+  return message;
+} catch (error) {
+  // error is often a string, or an Error with no message and no code
+} finally {
+  await NfcManager.cancelTechnologyRequest();
+}
+```
+
+Here the session owns you, and it always closes:
+
+```ts
+// After
+return nfc.withTag({ tech: ['ndef'], timeoutMs: 20_000 }, async (tag) => {
+  if (!tag.is('ndef')) throw new Error('Not an NDEF tag');
+  return tag.readNdef();
+});
+```
+
+`withTag` closes on every path — the work returning, the work throwing, an
+`AbortSignal` firing, a timeout, or the platform ending the session underneath. The
+tag is only valid inside the callback; using it afterwards rejects with
+`sessionClosed` rather than failing in some unrelated place later.
+
+## The equivalence table
+
+| `nfc-manager`                                        | Here                                                                                                                              |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `NfcManager.start()` / `.stop()`                     | Nothing. There is no global state to initialise.                                                                                  |
+| `NfcManager.isSupported()`                           | `nfc.isSupported()`                                                                                                               |
+| `NfcManager.isEnabled()`                             | `nfc.isEnabled()` — and it is real on iOS, not hardcoded `true`                                                                   |
+| `NfcManager.goToNfcSetting()`                        | `nfc.openSettings()`                                                                                                              |
+| `requestTechnology` + `getTag` + `cancelTechnology…` | `nfc.withTag({ tech }, work)`                                                                                                     |
+| The same, but keeping the session open               | `nfc.openSession({ tech })`, with `await using` or a `finally`                                                                    |
+| `registerTagEvent` + `setEventListener(DiscoverTag)` | `nfc.onTag({ tech }, listener)`                                                                                                   |
+| `ndefHandler.getNdefMessage()`                       | `tag.readNdef()` after `tag.is('ndef')`                                                                                           |
+| `ndefHandler.writeNdefMessage(bytes)`                | `tag.writeNdef(records)`                                                                                                          |
+| `ndefHandler.makeReadOnly()`                         | `tag.makeNdefReadOnly()`                                                                                                          |
+| `ndefFormatableHandlerAndroid.formatNdef()`          | `tag.formatNdef(records)` after `tag.is('ndefFormatable')`                                                                        |
+| `isoDepHandler.transceive(numbers)`                  | `tag.transceive(bytes)` after `tag.is('isoDep')`                                                                                  |
+| `isoDepHandler.transceive` for an APDU               | `sendApdu(tag, command)` from `/protocols`, with a builder like `selectByName(aid)` or a literal `{ cla, ins, p1, p2, data, le }` |
+| `nfcAHandler.transceive`                             | `tag.transceive(bytes)` after `tag.is('nfcA')`                                                                                    |
+| `setTimeout(ms)`                                     | `tag.android?.setTechTimeout(tech, ms)`                                                                                           |
+| `getMaxTransceiveLength()`                           | `tag.maxTransceiveLength()`                                                                                                       |
+| `setAlertMessageIOS(text)`                           | `ios: { alertMessage }` in the options, or `session.setAlert()`                                                                   |
+| `setEventListener(SessionClosed)`                    | The promise settling. There is no separate event.                                                                                 |
+| `getBackgroundTag()`                                 | `nfc.withLaunchTag(work)`                                                                                                         |
+| `Ndef.encodeMessage(records)`                        | `encodeMessage(records)` from `/ndef`                                                                                             |
+| `Ndef.decodeMessage(bytes)`                          | `decodeMessage(bytes)`                                                                                                            |
+| `Ndef.textRecord(text, lang)`                        | `createTextRecord(text, { languageCode })`                                                                                        |
+| `Ndef.uriRecord(uri)`                                | `createUriRecord(uri)`                                                                                                            |
+| `Ndef.text.decodePayload(bytes)`                     | `decodeTextRecord(record).text`                                                                                                   |
+| `Ndef.uri.decodePayload(bytes)`                      | `decodeUriRecord(record).uri`                                                                                                     |
+
+## Six differences that will change your code
+
+**1. Bytes are `Uint8Array`, not arrays of numbers.** A 1 KB APDU response was 1024
+boxed JavaScript numbers; now it is 1024 bytes. Where you had
+`[0x00, 0xa4, 0x04, 0x00]`, write `new Uint8Array([0x00, 0xa4, 0x04, 0x00])` — or
+better, use the ISO 7816 helpers and stop hand-assembling APDUs.
+
+**2. `transceive` returns the same shape on both platforms.** `nfc-manager` returned
+`[...bytes, sw1, sw2]` on iOS and raw bytes on Android, with a `// TODO` in its own
+source admitting it. If you have platform branches around a transceive, delete
+them. For APDUs, `sendApdu` splits the status word off for you:
+
+```ts
+const response = await sendApdu(tag, { cla: 0x00, ins: 0xb0, p1: 0, p2: 0, le: 256 });
+if (!response.ok) throw new Error(response.statusHex);
+use(response.data);
+```
+
+**3. Technology methods do not exist until you narrow.** There is no
+`isoDepHandler` you can reach for on a tag that is not ISO-DEP. `tag.is('isoDep')`
+is what makes `transceive` exist, in the type system and at runtime. On iOS
+`tag.is('mifareClassic')` is always `false`, because CoreNFC cannot reach Crypto-1
+at any version — so a branch you wrote for Android is simply not entered rather
+than throwing somewhere unexpected.
+
+**4. Every rejection is an `NfcError` with a `code`.** `nfc-manager` rejected with
+bare strings from some paths, with `Error` subclasses that had no message and no
+code from others, and its Android side recognised exactly one error string. Replace
+string comparisons:
+
+```ts
+// Before
+if (error === 'cancelled') { … }
+
+// After
+if (NfcError.is(error, 'userCancelled')) { … }
+```
+
+The codes worth handling explicitly are `userCancelled`, `sessionTimeout`,
+`tagLost`, `nfcDisabled` and `systemBusy`. Everything else is a bug or a tag
+problem, and the message says which.
+
+**5. Cancelling is not an error, and aborting is not cancelling.** `nfc-manager`
+translated a user cancellation into "closed with no error", so you could not tell
+the two apart. Here `userCancelled` means the user dismissed the sheet and
+`aborted` means your own `AbortSignal` fired.
+
+**6. Subscriptions are real.** `setEventListener` kept one callback per event name,
+so a second registration silently replaced the first and there was no way to
+unsubscribe. `nfc.onTag(...)` returns a subscription with `.remove()`, and several
+listeners can coexist.
+
+## Things that quietly get better
+
+You do not have to do anything for these; they are listed so you know what to stop
+working around.
+
+- **No 1-second delay on Android.** `cancelTechnologyRequest` slept 1000 ms as a
+  race workaround, so cancelling took a second on Android and no time on iOS.
+- **The session cannot leak.** A native method that never called its callback left
+  a promise pending forever, and one that called it twice crashed under the New
+  Architecture. Both were shipped bugs. On iOS every continuation here goes through
+  a type that can only be resumed once.
+- **Tag I/O is off the main thread.** `nfc-manager` created both iOS sessions on
+  `dispatch_get_main_queue()`, so radio I/O blocked the UI, and ran blocking
+  Android I/O on the React Native module thread while holding a module-wide
+  monitor. Here iOS uses a dedicated serial queue and Android a dedicated
+  single-thread dispatcher.
+- **No chipset guessing.** MIFARE Classic support is read from the tag's own
+  technology list rather than by probing `/dev/bcm2079x-i2c`, scanning
+  `/system/lib`, and special-casing one Lenovo model by name.
+- **"Do I need to rebuild?" is answered at runtime.** A JavaScript bundle newer
+  than the installed native binary fails with `contractMismatch` and a message
+  saying to rebuild the development client, instead of an `undefined is not a
+function`.
+
+## What is not here yet
+
+Being explicit so you can check before you commit to a migration:
+
+- **MIFARE Classic sector helpers.** `mifareClassicHandlerAndroid` had
+  `authenticateSectorWithKeyA`, `readBlock` and friends. Here MIFARE Classic is
+  reachable as raw `transceive` on Android, but the sector authentication helpers
+  are not wrapped yet. If you rely on them, wait or open an issue.
+- **Type 3 tag emulation** (`HostNfcFService`). Card emulation here is
+  `HostApduService`, which is ISO 7816. FeliCa emulation is not implemented.
+- **Anything on iOS that needs an entitlement Apple grants case by case**, which is
+  card emulation and Wallet passes. Both are implemented; both need Apple to have
+  said yes to you.
+
+## Installing them side by side
+
+```bash
+npm install react-native-nfc-kit
+npx expo prebuild --clean   # or npx pod-install for bare
+```
+
+Both libraries can be present. What you must not do is hold a session open in one
+while starting one in the other: the platform allows a single session, so the second
+fails with `systemBusy` on Android and queues behind the first on iOS. In practice
+that means finishing the migration of one screen before starting the next, which is
+what you want anyway.
+
+When the last `NfcManager` call is gone, remove it — and its config plugin, which
+asks for both iOS reader-session formats unconditionally and cannot be told not to.
+The plugin here asks for the one format the implementation actually uses.
+
+## A worked example
+
+A check-in screen, before:
+
+```ts
+async function readTicket() {
+  await NfcManager.start();
+  try {
+    await NfcManager.requestTechnology(NfcTech.IsoDep, {
+      alertMessage: 'Hold the pass near the phone',
+    });
+    const response = await NfcManager.isoDepHandler.transceive([
+      0x00, 0xa4, 0x04, 0x00, 0x07, 0xf0, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+    ]);
+    const sw = (response[response.length - 2] << 8) | response[response.length - 1];
+    if (sw !== 0x9000) throw new Error(`bad status ${sw.toString(16)}`);
+    return response.slice(0, -2);
+  } finally {
+    await NfcManager.cancelTechnologyRequest();
+  }
+}
+```
+
+And after:
+
+```ts
+import { nfc } from 'react-native-nfc-kit';
+import { fromHex } from 'react-native-nfc-kit/ndef';
+import { selectByName, sendApdu } from 'react-native-nfc-kit/protocols';
+
+function readTicket() {
+  return nfc.withTag(
+    {
+      tech: ['isoDep'],
+      timeoutMs: 20_000,
+      ios: { alertMessage: 'Hold the pass near the phone' },
+      android: { presenceCheckDelayMs: 500 },
+    },
+    async (tag) => {
+      if (!tag.is('isoDep')) throw new Error('Not a smartcard');
+      const response = await sendApdu(tag, selectByName(fromHex('F0010203040506')));
+      if (!response.ok) throw new Error(response.statusHex);
+      return response.data;
+    },
+  );
+}
+```
+
+The status word arithmetic, the manual APDU assembly, the `finally`, and the
+`NfcManager.start()` are all gone. `presenceCheckDelayMs` is new and worth setting
+for anything doing crypto: Android's default is 125 ms, which DESFire
+authentication routinely exceeds, and the OS then declares the tag lost part-way
+through an exchange that was going fine.

@@ -1,4 +1,7 @@
-# Setup
+---
+title: Setup
+description: Most NFC support questions are setup questions. One page per use case, with both the Expo plugin option and the exact plist and manifest XML for a bare project.
+---
 
 Most NFC support questions are setup questions. A tag that works on Android and
 appears not to exist on iOS, a session that fails to open with an error that never
