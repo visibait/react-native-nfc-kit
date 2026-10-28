@@ -139,6 +139,12 @@ internal class TagHandle(
       // A tag that has already gone throws on close. There is nothing to recover
       // and nothing the caller could do, and the operation that follows will
       // report the real problem.
+    } catch (_: SecurityException) {
+      // So does a tag Android has already invalidated: "Tag ( ID: ... ) is out
+      // of date", once it left the field and another one was discovered, or
+      // reader mode was restarted. That is the normal state of a handle closed
+      // at teardown, and letting it escape aborted the React host's destroy --
+      // a reload in development, a crash on the way out in production.
     }
     connection = null
     connectedTech = null
