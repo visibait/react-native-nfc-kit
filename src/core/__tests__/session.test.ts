@@ -51,6 +51,7 @@ describe('option mapping', () => {
       androidSkipNdefCheck: false,
       androidNoPlatformSounds: false,
       androidPresenceCheckDelayMs: null,
+      androidReaderLingerMs: null,
     });
 
     await session.close();
@@ -66,7 +67,12 @@ describe('option mapping', () => {
         feliCaSystemCodes: ['0003'],
       },
       ios: { alertMessage: 'Hold your card near the phone', invalidateAfterFirstRead: true },
-      android: { skipNdefCheck: true, noPlatformSounds: true, presenceCheckDelayMs: 500 },
+      android: {
+        skipNdefCheck: true,
+        noPlatformSounds: true,
+        presenceCheckDelayMs: 500,
+        readerLingerMs: 3000,
+      },
     });
 
     expect(native.lastCallTo('startSession')?.args[1]).toEqual({
@@ -79,10 +85,23 @@ describe('option mapping', () => {
       androidSkipNdefCheck: true,
       androidNoPlatformSounds: true,
       androidPresenceCheckDelayMs: 500,
+      androidReaderLingerMs: 3000,
     });
 
     await session.close();
   });
+
+  it.each([-1, 1.5, 10_001, Number.NaN])(
+    'rejects a reader linger of %p without touching native',
+    async (readerLingerMs) => {
+      const native = new FakeNativeModule();
+
+      await expect(
+        openSession(deps(native), { tech: ['nfcA'], android: { readerLingerMs } }),
+      ).rejects.toMatchObject({ code: 'invalidArgument' });
+      expect(native.callsTo('startSession')).toHaveLength(0);
+    },
+  );
 
   it('rejects an empty technology list without touching native', async () => {
     const native = new FakeNativeModule();

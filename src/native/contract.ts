@@ -37,7 +37,7 @@
  *
  * Bumping this is a minor release, and the changelog marks it.
  */
-export const CONTRACT_VERSION = 6;
+export const CONTRACT_VERSION = 7;
 
 /** Native module name, as registered by both platforms. */
 export const NATIVE_MODULE_NAME = 'NfcKit';
@@ -271,6 +271,11 @@ export interface NativeSessionOptions {
    * OS then declares the tag lost part-way through. `null` keeps the default.
    */
   readonly androidPresenceCheckDelayMs: number | null;
+  /**
+   * Android: how long reader mode stays on, swallowing tags, after the session
+   * closes. `null` or 0 switches it off with the session.
+   */
+  readonly androidReaderLingerMs: number | null;
 }
 
 /* -------------------------------------------------------------------------- */

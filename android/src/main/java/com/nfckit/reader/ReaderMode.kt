@@ -4,6 +4,8 @@ import android.app.Activity
 import android.nfc.NfcAdapter
 import android.os.Bundle
 import android.os.DeadObjectException
+import android.os.Handler
+import android.os.Looper
 import com.nfckit.NfcErrorCode
 import com.nfckit.NfcException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -57,8 +59,14 @@ internal class ReaderModeController(private val adapterProvider: () -> NfcAdapte
   private var enabledFor: Activity? = null
 
   /** Whether reader mode is currently meant to be on, across foreground changes. */
+  @Volatile
   var wanted: Boolean = false
     private set
+
+  private val mainHandler = Handler(Looper.getMainLooper())
+
+  /** The pending switch-off of a session that closed with a linger. */
+  private var lingerRelease: Runnable? = null
 
   private var techs: List<String> = emptyList()
   private var options: ReaderOptions =
@@ -72,12 +80,21 @@ internal class ReaderModeController(private val adapterProvider: () -> NfcAdapte
         "This device has no NFC adapter.",
       )
 
+  /**
+   * Turns reader mode on for a session.
+   *
+   * If a previous session is still lingering, reader mode is already on and this
+   * only swaps the callback: it is never switched off in between, so a tag in the
+   * field cannot slip through to the system dispatcher.
+   */
+  @Synchronized
   fun want(
     activity: Activity,
     techs: List<String>,
     options: ReaderOptions,
     callback: NfcAdapter.ReaderCallback,
   ) {
+    cancelLinger()
     this.techs = techs
     this.options = options
     this.callback = callback
@@ -85,13 +102,33 @@ internal class ReaderModeController(private val adapterProvider: () -> NfcAdapte
     enable(activity)
   }
 
-  fun unwant(activity: Activity?) {
+  /**
+   * Stops wanting reader mode.
+   *
+   * With [lingerMs] above zero, reader mode stays on for that long, still
+   * registered with the closed session's callback, which ignores what it is
+   * given. That is the point: switching reader mode off while a tag is still on
+   * the reader hands the tag to Android's own dispatcher, which on most devices
+   * shows a system "new tag" screen over the app. A session opened within the
+   * window takes reader mode over without it ever going off.
+   */
+  @Synchronized
+  fun unwant(activity: Activity?, lingerMs: Int = 0) {
     wanted = false
     callback = null
+    cancelLinger()
+    val target = activity ?: enabledFor
+    if (lingerMs > 0 && target != null && enabledFor != null) {
+      val release = Runnable { releaseAfterLinger(target) }
+      lingerRelease = release
+      mainHandler.postDelayed(release, lingerMs.toLong())
+      return
+    }
     disable(activity)
   }
 
   /** Re-enables after the activity comes back, if reader mode is still wanted. */
+  @Synchronized
   fun resumeIfWanted(activity: Activity) {
     if (wanted && callback != null) {
       enable(activity)
@@ -99,8 +136,27 @@ internal class ReaderModeController(private val adapterProvider: () -> NfcAdapte
   }
 
   /** Drops reader mode while the activity is in the background, keeping intent. */
+  @Synchronized
   fun suspend(activity: Activity?) {
+    cancelLinger()
     disable(activity)
+  }
+
+  /** Whether a closed session is still holding reader mode. */
+  val lingering: Boolean
+    get() = lingerRelease != null
+
+  @Synchronized
+  private fun releaseAfterLinger(activity: Activity) {
+    lingerRelease = null
+    if (!wanted) {
+      disable(activity)
+    }
+  }
+
+  private fun cancelLinger() {
+    lingerRelease?.let { mainHandler.removeCallbacks(it) }
+    lingerRelease = null
   }
 
   private fun enable(activity: Activity) {
@@ -120,6 +176,12 @@ internal class ReaderModeController(private val adapterProvider: () -> NfcAdapte
   }
 
   private fun disable(activity: Activity?) {
+    // Nothing is on. Asking the NFC service to switch reader mode off anyway is
+    // not free: it restarts polling, so a tag resting on the reader is
+    // discovered again and dispatched -- to the system chooser, if nothing
+    // claims it. A JavaScript reload did exactly that: two spurious switch-offs
+    // during teardown, and the chooser over the app.
+    if (enabledFor == null) return
     val target = activity ?: enabledFor ?: return
     val adapter = adapterProvider() ?: return
 

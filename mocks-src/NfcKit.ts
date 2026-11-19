@@ -216,7 +216,7 @@ export const __nfcKitMock = {
 /* The mocked native surface                                                  */
 /* -------------------------------------------------------------------------- */
 
-export const contractVersion = 6;
+export const contractVersion = 7;
 
 export const capabilities = {
   platform: 'android',

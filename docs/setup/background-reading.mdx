@@ -102,6 +102,18 @@ matches an ISO-DEP tag, or a tag that is both MIFARE Ultralight and NDEF.
 also the widest filter there is — it fires for any tag at all, including ones your
 app has no idea what to do with.
 
+#### While the app is in front
+
+Declaring tech lists also makes the app claim those tags while its activity is in
+front and no session is open — between two screens, or while JavaScript reloads.
+They arrive through `onBackgroundTag`, like a tag that launched the app.
+
+Without that claim, a device with two apps declaring the same technology shows
+Android's "choose an app" screen over the app in front, for a tag the user meant
+for it. The claim uses foreground dispatch for exactly the declared tech lists; an
+open session's reader mode still takes precedence, and nothing is claimed when no
+tech lists are declared.
+
 ### iOS
 
 There is nothing to configure. iOS reads NDEF tags in the background on its own,

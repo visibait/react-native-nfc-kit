@@ -566,5 +566,6 @@ function options(techs: string[] = ['ndef']) {
     androidSkipNdefCheck: false,
     androidNoPlatformSounds: false,
     androidPresenceCheckDelayMs: null,
+    androidReaderLingerMs: null,
   };
 }

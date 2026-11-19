@@ -1,15 +1,20 @@
 package com.nfckit
 
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.nfc.NfcAdapter
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.nfc.cardemulation.CardEmulation
 import android.nfc.cardemulation.HostApduService
+import com.nfckit.background.ForegroundDispatch
 import com.nfckit.background.IntentTags
 import com.nfckit.hce.HceBridge
 import com.nfckit.hce.NfcKitHostApduService
@@ -25,12 +30,13 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Bumped together with `CONTRACT_VERSION` in `src/native/contract.ts`. */
-private const val CONTRACT_VERSION = 6
+private const val CONTRACT_VERSION = 7
 
 private const val EVENT_TAG_DISCOVERED = "onTagDiscovered"
 private const val EVENT_BACKGROUND_TAG = "onBackgroundTag"
@@ -49,6 +55,13 @@ private const val ANTENNA_INFO_SDK = 34
 
 /** The API level that added the secure NFC setting. */
 private const val SECURE_NFC_SDK = 29
+
+/**
+ * Upper bound for `androidReaderLingerMs`. Long enough to take a wrist off the
+ * reader; short enough that a forgotten value cannot hold the controller for
+ * good.
+ */
+private const val MAX_READER_LINGER_MS = 10_000
 
 /** Mirrors `NativePollingLoopFilter`. */
 class PollingLoopFilterOptions : Record {
@@ -78,10 +91,16 @@ class SessionOptions : Record {
   @Field val androidSkipNdefCheck: Boolean = false
   @Field val androidNoPlatformSounds: Boolean = false
   @Field val androidPresenceCheckDelayMs: Int? = null
+  @Field val androidReaderLingerMs: Int? = null
 }
 
 /** One open reading session and the tags it has handed out. */
-private class ReaderSession(val id: String, val techs: List<String>) {
+private class ReaderSession(
+  val id: String,
+  val techs: List<String>,
+  /** How long reader mode stays on, swallowing tags, after this session closes. */
+  val lingerMs: Int,
+) {
   val handles = ConcurrentHashMap<String, TagHandle>()
   private val counter = AtomicInteger(0)
 
@@ -98,6 +117,7 @@ class NfcKitModule : Module() {
   private var session: ReaderSession? = null
 
   private val readerMode = ReaderModeController { nfcAdapter() }
+  private val foregroundDispatch = ForegroundDispatch { nfcAdapter() }
 
   /**
    * Tags that arrived in an intent rather than in a session.
@@ -112,8 +132,37 @@ class NfcKitModule : Module() {
   private val tagLostWatcher by lazy {
     TagLostWatcher(appContext.backgroundCoroutineScope) { sessionId, handleId ->
       sendEvent(EVENT_TAG_LOST, mapOf("sessionId" to sessionId, "handleId" to handleId))
+      // A tag that has left the field is done with. Without this a long-lived
+      // session -- a door scanning all night -- kept every tag it ever saw open
+      // until it closed, one technology connection per tap.
+      releaseLostHandle(handleId)
     }
   }
+
+  /**
+   * Notices NFC being switched off or on under the app.
+   *
+   * Switching NFC off ends reader mode without telling the app, and a stream
+   * that does not know it has ended never reopens. The session is invalidated
+   * so JavaScript learns it is over, and availability listeners hear both ways.
+   */
+  private val adapterStateReceiver = object : BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+      if (intent?.action != NfcAdapter.ACTION_ADAPTER_STATE_CHANGED) return
+      when (intent.getIntExtra(NfcAdapter.EXTRA_ADAPTER_STATE, NfcAdapter.STATE_OFF)) {
+        NfcAdapter.STATE_OFF -> {
+          invalidateSession(
+            NfcErrorCode.NFC_DISABLED,
+            "NFC was switched off while the session was open.",
+          )
+          sendEvent(EVENT_AVAILABILITY_CHANGED, mapOf("supported" to true, "enabled" to false))
+        }
+        NfcAdapter.STATE_ON ->
+          sendEvent(EVENT_AVAILABILITY_CHANGED, mapOf("supported" to true, "enabled" to true))
+      }
+    }
+  }
+  private var adapterReceiverRegistered = false
 
   /* ---------------------------------------------------------------------- */
   /* Context access                                                         */
@@ -239,7 +288,11 @@ class NfcKitModule : Module() {
       }
 
       val activity = requireActivity()
-      val active = ReaderSession(sessionId, options.techs)
+      val active = ReaderSession(
+        sessionId,
+        options.techs,
+        (options.androidReaderLingerMs ?: 0).coerceIn(0, MAX_READER_LINGER_MS),
+      )
       session = active
 
       try {
@@ -265,13 +318,13 @@ class NfcKitModule : Module() {
       }
     }
 
-    AsyncFunction("closeSession") { sessionId: String ->
+    AsyncFunction("closeSession") Coroutine { sessionId: String ->
       val active = session
       if (active != null && active.id == sessionId) {
         session = null
-        readerMode.unwant(currentActivityOrNull())
+        readerMode.unwant(currentActivityOrNull(), active.lingerMs)
         tagLostWatcher.stopAll()
-        active.closeAll()
+        withContext(TagIo.dispatcher) { active.closeAll() }
       }
       // Closing an already-closed session is not an error. JavaScript closes in a
       // finally block, which can legitimately run after the platform already
@@ -465,10 +518,17 @@ class NfcKitModule : Module() {
       // Reader mode belongs to the foreground activity, so it has to be
       // re-established after the app comes back. The session survives; only the
       // radio was released.
-      currentActivityOrNull()?.let { readerMode.resumeIfWanted(it) }
+      currentActivityOrNull()?.let {
+        readerMode.resumeIfWanted(it)
+        foregroundDispatch.enable(it)
+      }
     }
 
     OnActivityEntersBackground {
+      // Foreground dispatch is not touched here: Android drops it by itself
+      // when the activity really pauses. This event also fires while
+      // JavaScript reloads, with the activity still on screen, and dropping it
+      // then left a resting tag to the system chooser.
       readerMode.suspend(currentActivityOrNull())
     }
 
@@ -478,12 +538,23 @@ class NfcKitModule : Module() {
       takeIntentTag(intent)?.let { info -> sendEvent(EVENT_BACKGROUND_TAG, mapOf("tag" to info)) }
     }
 
+    OnCreate {
+      registerAdapterReceiver()
+      // After a JavaScript reload the module is created again with the activity
+      // already resumed, and no resume event follows. Foreground dispatch is
+      // tied to the activity, not to this module, so it is simply set again.
+      Handler(Looper.getMainLooper()).post {
+        currentActivityOrNull()?.let { foregroundDispatch.enable(it) }
+      }
+    }
+
     OnActivityDestroys {
       teardown()
     }
 
     OnDestroy {
       teardown()
+      unregisterAdapterReceiver()
     }
   }
 
@@ -749,12 +820,71 @@ class NfcKitModule : Module() {
     }
   }
 
-  private fun teardown() {
-    val active = session
+  /**
+   * Ends the open session from the native side and tells JavaScript.
+   *
+   * Without the event, JavaScript kept a stream that no longer received tags
+   * and, believing it was still open, never reopened it: the reader looked
+   * armed and every tap went to the system instead.
+   */
+  private fun invalidateSession(code: String, message: String) {
+    val active = session ?: return
     session = null
     readerMode.unwant(currentActivityOrNull())
     tagLostWatcher.stopAll()
-    active?.closeAll()
+    active.closeAll()
+    sendEvent(
+      EVENT_SESSION_INVALIDATED,
+      mapOf(
+        "sessionId" to active.id,
+        "error" to mapOf(
+          "code" to code,
+          "message" to message,
+          "nativeCode" to null,
+          "recoverable" to true,
+        ),
+      ),
+    )
+  }
+
+  /** Closes and forgets a session tag that has left the field. */
+  private fun releaseLostHandle(handleId: String) {
+    val handle = session?.handles?.remove(handleId) ?: return
+    appContext.backgroundCoroutineScope.launch(TagIo.dispatcher) {
+      handle.close()
+    }
+  }
+
+  private fun registerAdapterReceiver() {
+    if (adapterReceiverRegistered) return
+    val context = appContext.reactContext ?: return
+    val filter = IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED)
+    runCatching {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        context.registerReceiver(adapterStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+      } else {
+        @Suppress("UnspecifiedRegisterReceiverFlag")
+        context.registerReceiver(adapterStateReceiver, filter)
+      }
+      adapterReceiverRegistered = true
+    }
+  }
+
+  private fun unregisterAdapterReceiver() {
+    if (!adapterReceiverRegistered) return
+    runCatching { appContext.reactContext?.unregisterReceiver(adapterStateReceiver) }
+    adapterReceiverRegistered = false
+  }
+
+  private fun teardown() {
+    // The activity is going away: the session goes with it, and JavaScript has
+    // to hear it or its stream would wait forever for a tag that cannot come.
+    invalidateSession(
+      NfcErrorCode.SESSION_CLOSED,
+      "The activity that held reader mode was destroyed.",
+    )
+    readerMode.unwant(currentActivityOrNull())
+    tagLostWatcher.stopAll()
 
     backgroundHandles.values.forEach { it.close() }
     backgroundHandles.clear()

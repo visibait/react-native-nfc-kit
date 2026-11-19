@@ -54,6 +54,7 @@ describe('useNfcTagStream', () => {
     expect(native.lastCallTo('startSession')?.args[1]).toMatchObject({
       techs: ['isoDep'],
       androidPresenceCheckDelayMs: 500,
+      androidReaderLingerMs: null,
       androidSkipNdefCheck: true,
     });
   });

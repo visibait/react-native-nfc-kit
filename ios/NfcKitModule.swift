@@ -3,7 +3,7 @@ import UIKit
 @preconcurrency import CoreNFC
 
 /// Bumped together with `CONTRACT_VERSION` in `src/native/contract.ts`.
-private let contractVersion = 6
+private let contractVersion = 7
 
 /// Mirrors `NativeSessionOptions`. The Android fields are accepted and ignored.
 internal struct SessionOptions: Record {
@@ -16,6 +16,7 @@ internal struct SessionOptions: Record {
   @Field var androidSkipNdefCheck: Bool = false
   @Field var androidNoPlatformSounds: Bool = false
   @Field var androidPresenceCheckDelayMs: Int?
+  @Field var androidReaderLingerMs: Int?
 }
 
 /** Mirrors `NativeVasConfiguration`. */

@@ -96,6 +96,18 @@ export interface AndroidScanOptions {
    * lost part-way through an exchange that was going fine.
    */
   readonly presenceCheckDelayMs?: number;
+  /**
+   * How long reader mode stays on after the session closes, in milliseconds,
+   * swallowing any tag. Defaults to 0: reader mode goes off with the session.
+   *
+   * Switching reader mode off while a tag is still on the reader hands that tag
+   * to Android's own dispatcher, which on most devices puts a system "new tag"
+   * screen over the app. That is exactly the moment right after a write, when
+   * the card or wristband has not been taken away yet. A session opened within
+   * the window takes reader mode over without it ever going off, so moving from
+   * one session to the next leaves no gap either. Capped at 10 000 ms.
+   */
+  readonly readerLingerMs?: number;
 }
 
 export interface ScanOptions extends Deadline {
@@ -119,6 +131,7 @@ function toNativeOptions(options: ScanOptions): NativeSessionOptions {
     androidSkipNdefCheck: android?.skipNdefCheck ?? false,
     androidNoPlatformSounds: android?.noPlatformSounds ?? false,
     androidPresenceCheckDelayMs: android?.presenceCheckDelayMs ?? null,
+    androidReaderLingerMs: android?.readerLingerMs ?? null,
   };
 }
 
@@ -127,6 +140,13 @@ function validateOptions(options: ScanOptions): void {
     throw new NfcError({
       code: 'invalidArgument',
       message: 'At least one technology must be requested; received an empty list.',
+    });
+  }
+  const linger = options.android?.readerLingerMs;
+  if (linger !== undefined && (!Number.isInteger(linger) || linger < 0 || linger > 10_000)) {
+    throw new NfcError({
+      code: 'invalidArgument',
+      message: `android.readerLingerMs must be a whole number of milliseconds from 0 to 10000; received ${String(linger)}.`,
     });
   }
 }

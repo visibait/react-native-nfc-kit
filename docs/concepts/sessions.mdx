@@ -183,6 +183,13 @@ Every entry point takes the same `ScanOptions`.
     <ResponseField name="noPlatformSounds" type="boolean">
       Suppresses the system discovery sound.
     </ResponseField>
+    <ResponseField name="readerLingerMs" type="number">
+      Keeps reader mode on for this long after the session closes, from 0 to 10000. A session opened
+      within the window takes reader mode over without it ever switching off. Switching it off with
+      a tag still on the reader hands that tag to the system, which on most devices shows its own
+      "new tag" screen over the app — so set it whenever one session follows another, for example a
+      continuous scan paused to write to the tag. The default is 0.
+    </ResponseField>
   </Expandable>
 </ResponseField>
 
